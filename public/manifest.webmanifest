@@ -1,0 +1,55 @@
+{
+  "name": "Voltio — Carga Compartida",
+  "short_name": "Voltio",
+  "description": "Alquila tu cargador de vehículo eléctrico y calcula cuánto cobrar por el consumo, en pesos colombianos.",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#05070e",
+  "theme_color": "#05070e",
+  "orientation": "any",
+  "categories": ["utilities", "productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nueva carga",
+      "short_name": "Cargar",
+      "description": "Registrar una nueva sesión de carga",
+      "url": "/?action=new"
+    },
+    {
+      "name": "Historial",
+      "short_name": "Historial",
+      "description": "Ver el historial de cargas",
+      "url": "/?action=history"
+    },
+    {
+      "name": "Gráficas",
+      "short_name": "Gráficas",
+      "description": "Ver gráficas de tus cargas",
+      "url": "/?action=charts"
+    }
+  ]
+}

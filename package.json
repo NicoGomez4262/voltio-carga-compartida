@@ -1,0 +1,26 @@
+{
+  "name": "voltio-carga-compartida",
+  "version": "1.2.0",
+  "private": true,
+  "description": "PWA futurista para alquilar tu estación de carga de vehículos eléctricos y cobrar el consumo en COP.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "serve": "node server.js",
+    "gen:icons": "node scripts/gen-icons.js",
+    "deploy": "firebase deploy --only hosting"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "ev",
+    "carga",
+    "vehiculo-electrico",
+    "pwa",
+    "colombia",
+    "firebase"
+  ],
+  "license": "MIT"
+}

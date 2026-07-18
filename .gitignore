@@ -1,0 +1,13 @@
+node_modules/
+.firebase/
+firebase-debug.log
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.local
+
+# Credenciales de Firebase (nunca subir)
+*firebase-adminsdk*.json
+*-key.json
+serviceAccountKey.json
