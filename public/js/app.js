@@ -1,6 +1,7 @@
 /* =========================================================
-   VOLTIO — Carga Compartida · v1.2
-   Marketplace de carga + calculadora (sin dependencias)
+   VOLTIO — Red de Carga Compartida · v2.0
+   Frontend: mapa real, reservas, chat y calificaciones en
+   tiempo real (Firebase vía backend.js) + calculadora local.
    ========================================================= */
 (function () {
   'use strict';
@@ -8,45 +9,22 @@
   /* ---------- Constantes ---------- */
   const LS_SETTINGS = 'voltio.settings.v1';
   const LS_SESSIONS = 'voltio.sessions.v1';
-  const LS_BOOKINGS = 'voltio.bookings.v1';
-  const LS_REQUESTS = 'voltio.requests.v1';
+  const LS_CHATSEEN = 'voltio.chatseen.v1';
   const CO2_GAS_PER_L = 2.31;
   const GAS_KM_PER_L = 12;
   const GAS_PRICE_PER_L = 4300;
   const DIAS = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+  const BOGOTA = { lat: 4.6533, lng: -74.0836 };
   const DEFAULTS = {
-    pricePerKwh: 800,
-    serviceFee: 0,
-    stationName: '',
-    ownerName: '',
-    kmPerKwh: 6,
-    accent: 'cyan',
-    animations: true,
-    role: null,          // 'driver' | 'host'
-    vehicle: 'pickup',   // 'sedan' | 'pickup' | 'suv' | '4x4'
-    mySpot: null
+    pricePerKwh: 800, serviceFee: 0, stationName: '', ownerName: '',
+    kmPerKwh: 6, accent: 'cyan', animations: true, role: null, vehicle: 'pickup'
   };
-
-  // Puestos de demostración (Bogotá) — en una versión con backend vendrían de la nube
-  const DEMO_SPOTS = [
-    { id: 'd1', nombre: 'Garaje Chapinero Alto', host: 'Carolina M.', dir: 'Cl 60 # 4-32, Chapinero', precio: 950, pow: 7.4, puerto: 'Tipo 2', distKm: 0.8, rating: 4.9, votes: 23, desde: '06:00', hasta: '22:00', dias: [1, 1, 1, 1, 1, 1, 1], verificado: true, breb: '@caro.carga', titular: 'Carolina Martínez', x: 210, y: 100 },
-    { id: 'd2', nombre: 'Parqueadero Cedritos 140', host: 'Jorge P.', dir: 'Cl 140 # 12-18, Cedritos', precio: 1100, pow: 7.4, puerto: 'Tipo 1', distKm: 2.4, rating: 4.7, votes: 15, desde: '07:00', hasta: '20:00', dias: [0, 1, 1, 1, 1, 1, 0], verificado: false, breb: '@evcedritos', titular: 'Jorge Peña', x: 265, y: 60 },
-    { id: 'd3', nombre: 'La Soledad 24h', host: 'Estación Local', dir: 'Cra 19 # 39-41, La Soledad', precio: 1250, pow: 11, puerto: 'CCS', distKm: 1.5, rating: 4.8, votes: 41, desde: '00:00', hasta: '23:59', dias: [1, 1, 1, 1, 1, 1, 1], verificado: true, breb: '@lasoledad.ev', titular: 'EV Soledad SAS', x: 150, y: 160 },
-    { id: 'd4', nombre: 'Casa Kennedy Central', host: 'Marta L.', dir: 'Cl 38 sur # 78-15, Kennedy', precio: 800, pow: 3.6, puerto: 'Doméstico', distKm: 5.1, rating: 4.5, votes: 9, desde: '18:00', hasta: '23:00', dias: [1, 1, 1, 1, 1, 1, 1], verificado: false, breb: '@kdy.carga', titular: 'Marta López', x: 70, y: 195 },
-    { id: 'd5', nombre: 'Torres del Parque', host: 'Andrés G.', dir: 'Cra 5 # 26-57, Centro', precio: 1000, pow: 7.4, puerto: 'Tipo 2', distKm: 1.1, rating: 4.6, votes: 18, desde: '08:00', hasta: '21:00', dias: [1, 1, 1, 1, 1, 1, 1], verificado: false, breb: '@torrespq', titular: 'Andrés Gil', x: 205, y: 140 },
-    { id: 'd6', nombre: 'Chía — Finca El Roble', host: 'Familia Roble', dir: 'Vereda Bojacá, Chía', precio: 1400, pow: 22, puerto: 'Tipo 2', distKm: 12.5, rating: 5.0, votes: 12, desde: '09:00', hasta: '18:00', dias: [0, 0, 0, 0, 0, 1, 1], verificado: true, breb: '@roble.ev', titular: 'Camilo Roble', x: 320, y: 35 },
-    { id: 'd7', nombre: 'Suba Compartir', host: 'Deivid R.', dir: 'Cl 145 # 91-20, Suba', precio: 850, pow: 3.6, puerto: 'Doméstico', distKm: 3.8, rating: 4.4, votes: 7, desde: '19:00', hasta: '23:00', dias: [1, 1, 1, 1, 1, 0, 0], verificado: false, breb: '@subaev', titular: 'Deivid Rojas', x: 110, y: 75 }
-  ];
 
   /* ---------- Helpers ---------- */
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
   const SVGNS = 'http://www.w3.org/2000/svg';
-  const svgEl = (tag, attrs) => {
-    const el = document.createElementNS(SVGNS, tag);
-    for (const k in attrs) el.setAttribute(k, attrs[k]);
-    return el;
-  };
+  const svgEl = (tag, attrs) => { const el = document.createElementNS(SVGNS, tag); for (const k in attrs) el.setAttribute(k, attrs[k]); return el; };
 
   const copFmt = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
   const fmtCOP = (n) => copFmt.format(Math.round(n || 0));
@@ -79,42 +57,75 @@
 
   const round2 = (n) => Math.round((n || 0) * 100) / 100;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-  const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-  const uid = (p) => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const uid8 = (p) => p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const tsDate = (ts) => (ts && ts.seconds ? new Date(ts.seconds * 1000) : new Date());
+  const haversine = (a, b) => {
+    const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  };
+  const starTxt = (avg) => '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg));
 
-  function loadJSON(key, fallback) {
-    try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; }
-    catch (e) { return fallback; }
-  }
+  function loadJSON(key, fb) { try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fb : v; } catch (e) { return fb; } }
 
   /* ---------- Estado ---------- */
   let settings = Object.assign({}, DEFAULTS, loadJSON(LS_SETTINGS, {}));
   let sessions = loadJSON(LS_SESSIONS, []);
-  let bookings = loadJSON(LS_BOOKINGS, []);
-  let requests = loadJSON(LS_REQUESTS, null); // null => aún no sembradas
   let mode = 'meter';
   let lastCalc = null;
   let stationEditing = false;
   let spotEditing = false;
   let currentView = 'charge';
-  let sheetSpot = null;
   const taState = { torre: null, piso: null, unit: null };
   const chartState = { group: 'day' };
   const filters = { sort: 'dist', maxPrice: 2000, minPow: 0, port: 'all', now: false };
-  const spDias = [0, 1, 1, 1, 1, 1, 0]; // editor de disponibilidad (D..S)
+  const spDias = [0, 1, 1, 1, 1, 1, 0];
+
+  // Backend
+  let VB = null;
+  let user = null;
+  let backendOff = false;
+  let stations = [];
+  let myBookings = [];
+  let myRequests = [];
+  let myChats = [];
+  let myStationDoc = null;
+  let sheetStation = null;
+  let chatCtx = null;      // { chatId, title, sub, demo }
+  let rateCtx = null;      // { bookingId, stationId, toName, tipo }
+  let rateStars = 0;
+  let spFotos = [];
+  let spLoc = { lat: BOGOTA.lat, lng: BOGOTA.lng };
+  let userLoc = null;
+  let liveMap = null, pickMap = null, pickMarker = null, markersLayer = null, meMarker = null;
+  const unsubs = {};
 
   const persistSettings = () => localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
   const persistSessions = () => localStorage.setItem(LS_SESSIONS, JSON.stringify(sessions));
-  const persistBookings = () => localStorage.setItem(LS_BOOKINGS, JSON.stringify(bookings));
-  const persistRequests = () => localStorage.setItem(LS_REQUESTS, JSON.stringify(requests));
+
+  function whenVB(cb) {
+    if (window.VB) { cb(window.VB); return; }
+    window.addEventListener('vb-ready', () => cb(window.VB), { once: true });
+    setTimeout(() => { if (!window.VB && !backendOff) { backendOff = true; showBackendNotice('Sin conexión con la nube de Voltio. Revisa tu internet.'); } }, 9000);
+  }
+
+  function showBackendNotice(msg) {
+    ['#mapNotice', '#reqNotice'].forEach((s) => {
+      const el = $(s);
+      if (el) { el.textContent = '⚠️ ' + msg; el.classList.remove('hidden'); }
+    });
+  }
+
+  const needLogin = () => { openLoginSheet(); toast('Inicia sesión para continuar', 'error'); };
 
   /* =========================================================
      Roles y navegación
      ========================================================= */
   const TABS = {
-    driver: ['map', 'bookings', 'charge', 'settings'],
-    host: ['charge', 'requests', 'history', 'charts', 'settings']
+    driver: ['map', 'bookings', 'chats', 'charge', 'settings'],
+    host: ['charge', 'requests', 'chats', 'insights', 'settings']
   };
 
   function applyRole(role, opts) {
@@ -122,7 +133,7 @@
     persistSettings();
     const list = TABS[role] || TABS.host;
     $$('.nav-btn').forEach((b) => b.classList.toggle('nav-hidden', !list.includes(b.dataset.view)));
-    $('#roleTag').textContent = role === 'driver' ? 'Encuentra tu carga' : 'Carga compartida';
+    $('#roleTag').textContent = role === 'driver' ? 'Encuentra tu carga' : 'Red de carga';
     $$('#roleSwitch .seg-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.role === role));
     $('#roleGate').classList.add('hidden');
     $('#roleGate').setAttribute('aria-hidden', 'true');
@@ -138,16 +149,663 @@
       v.hidden = !active;
     });
     $$('.nav-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.view === name));
-    if (name === 'history') renderHistory();
-    if (name === 'charts') renderCharts();
-    if (name === 'map') renderMap();
+    if (name === 'insights') { renderHistory(); renderCharts(); }
+    if (name === 'map') setTimeout(initLiveMap, 60);
     if (name === 'bookings') renderBookings();
-    if (name === 'requests') { renderSpotCard(); renderRequests(); }
+    if (name === 'chats') { localStorage.setItem(LS_CHATSEEN, String(Date.now())); renderChatList(); updateDots(); }
+    if (name === 'requests') renderHostArea();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   /* =========================================================
-     Torre y apartamento
+     Autenticación (UI)
+     ========================================================= */
+  let lgMode = 'login';
+
+  function openLoginSheet() { openSheetEl('#loginSheet'); setTimeout(() => $('#lgEmail').focus(), 250); }
+
+  function renderAuthUI() {
+    const logged = !!user;
+    $('#accSignedOut').classList.toggle('hidden', logged);
+    $('#accSignedIn').classList.toggle('hidden', !logged);
+    const top = $('#topAvatar');
+    if (logged) {
+      const name = VB.userName() || 'U';
+      const photo = user.photoURL;
+      top.innerHTML = photo ? `<img src="${escapeHtml(photo)}" alt=""/>` : escapeHtml(name[0].toUpperCase());
+      $('#accAvatar').innerHTML = photo ? `<img src="${escapeHtml(photo)}" alt=""/>` : escapeHtml(name[0].toUpperCase());
+      $('#accName').textContent = name;
+      $('#accEmail').textContent = user.email || '';
+      const badges = [];
+      if (VB.isGoogle()) badges.push('<span class="sc-badge b-ver">✓ Google</span>');
+      if (user.emailVerified) badges.push('<span class="sc-badge b-ok">✓ Correo verificado</span>');
+      else if (user.email) badges.push('<span class="sc-badge b-off">Correo sin verificar</span>');
+      badges.push('<span class="sc-badge b-id">🪪 Identidad: próximamente</span>');
+      $('#accBadges').innerHTML = badges.join('');
+    } else {
+      top.textContent = '👤';
+    }
+  }
+
+  function startWatchers() {
+    stopWatchers(['bookings', 'requests', 'chats']);
+    if (!VB || !user) { myBookings = []; myRequests = []; myChats = []; renderBookings(); renderChatList(); renderHostArea(); updateDots(); return; }
+    unsubs.bookings = VB.watchMyBookings((list) => { myBookings = list; if (currentView === 'bookings') renderBookings(); updateDots(); });
+    unsubs.requests = VB.watchRequests((list) => { myRequests = list; if (currentView === 'requests') renderRequests(); updateDots(); });
+    unsubs.chats = VB.watchChats((list) => { myChats = list; if (currentView === 'chats') renderChatList(); updateDots(); });
+    VB.myStation().then((st) => { myStationDoc = st; if (currentView === 'requests') renderHostArea(); }).catch(() => {});
+  }
+
+  function stopWatchers(keys) {
+    keys.forEach((k) => { if (unsubs[k]) { try { unsubs[k](); } catch (e) {} delete unsubs[k]; } });
+  }
+
+  function updateDots() {
+    const pend = myRequests.filter((r) => r.estado === 'pendiente').length;
+    $('#dotRequests').classList.toggle('hidden', !pend);
+    const seen = +(localStorage.getItem(LS_CHATSEEN) || 0);
+    const uidv = VB && VB.uid();
+    const unread = myChats.some((c) => c.lastFrom && c.lastFrom !== uidv && tsDate(c.lastAt).getTime() > seen);
+    $('#dotChats').classList.toggle('hidden', !unread);
+    const news = myBookings.some((b) => b.estado === 'confirmada' && !b.seenConf);
+    $('#dotBookings').classList.toggle('hidden', !news);
+  }
+
+  /* =========================================================
+     Mapa real (Leaflet)
+     ========================================================= */
+  function initLiveMap() {
+    if (!window.L || liveMap || !$('#liveMap')) { if (liveMap) { liveMap.invalidateSize(); applyFilters(); } return; }
+    liveMap = L.map('liveMap', { zoomControl: true, attributionControl: true }).setView([BOGOTA.lat, BOGOTA.lng], 11);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(liveMap);
+    markersLayer = L.layerGroup().addTo(liveMap);
+    applyFilters();
+    setTimeout(() => liveMap.invalidateSize(), 200);
+  }
+
+  function locateMe(silent) {
+    if (!navigator.geolocation) { if (!silent) toast('Tu navegador no permite geolocalización', 'error'); return; }
+    navigator.geolocation.getCurrentPosition((pos) => {
+      userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      $('#locState').textContent = 'tu ubicación real';
+      if (liveMap) {
+        if (meMarker) meMarker.remove();
+        meMarker = L.marker([userLoc.lat, userLoc.lng], {
+          icon: L.divIcon({ className: 'v-me', html: '<i></i>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+          zIndexOffset: 900
+        }).addTo(liveMap);
+        liveMap.setView([userLoc.lat, userLoc.lng], 13);
+      }
+      applyFilters();
+      if (!silent) toast('Ubicación actualizada 📍');
+    }, () => { if (!silent) toast('No pudimos obtener tu ubicación. Revisa los permisos.', 'error'); }, { enableHighAccuracy: true, timeout: 9000 });
+  }
+
+  function isOpenNow(sp) {
+    const now = new Date();
+    const dias = sp.dias || [1, 1, 1, 1, 1, 1, 1];
+    if (!dias[now.getDay()]) return false;
+    const cur = now.getHours() * 60 + now.getMinutes();
+    const [h1, m1] = String(sp.desde || '00:00').split(':').map(Number);
+    const [h2, m2] = String(sp.hasta || '23:59').split(':').map(Number);
+    return cur >= h1 * 60 + m1 && cur <= h2 * 60 + m2;
+  }
+
+  const distTo = (sp) => haversine(userLoc || BOGOTA, { lat: sp.lat || BOGOTA.lat, lng: sp.lng || BOGOTA.lng });
+  const ratingAvg = (sp) => (sp.ratingCount ? sp.ratingSum / sp.ratingCount : 0);
+
+  function filteredStations() {
+    let list = stations.filter((sp) =>
+      (sp.precio || 0) <= filters.maxPrice &&
+      (sp.pow || 0) >= filters.minPow &&
+      (filters.port === 'all' || sp.puerto === filters.port) &&
+      (!filters.now || isOpenNow(sp))
+    );
+    if (filters.sort === 'dist') list.sort((a, b) => distTo(a) - distTo(b));
+    if (filters.sort === 'price') list.sort((a, b) => (a.precio || 0) - (b.precio || 0));
+    if (filters.sort === 'pow') list.sort((a, b) => (b.pow || 0) - (a.pow || 0));
+    if (filters.sort === 'rating') list.sort((a, b) => ratingAvg(b) - ratingAvg(a));
+    return list;
+  }
+
+  function applyFilters() {
+    const list = filteredStations();
+    $('#mapCount').textContent = list.length + (list.length === 1 ? ' puesto' : ' puestos');
+    if (markersLayer) {
+      markersLayer.clearLayers();
+      list.forEach((sp) => {
+        if (sp.lat == null || sp.lng == null) return;
+        const open = isOpenNow(sp);
+        const icon = L.divIcon({
+          className: '',
+          html: `<div class="v-pin ${open ? '' : 'vp-off'}"><div class="vp-dot"><span>⚡</span></div><div class="vp-price">${fmtCompact(sp.precio || 0, 'cop')}</div></div>`,
+          iconSize: [34, 48], iconAnchor: [17, 34]
+        });
+        L.marker([sp.lat, sp.lng], { icon })
+          .addTo(markersLayer)
+          .on('click', () => openSpotSheet(sp));
+      });
+    }
+    renderSpotList(list);
+  }
+
+  function renderSpotList(list) {
+    const ul = $('#mapList');
+    ul.innerHTML = '';
+    $('#mapEmpty').classList.toggle('hidden', list.length > 0 || backendOff);
+    list.forEach((sp) => {
+      const open = isOpenNow(sp);
+      const avg = ratingAvg(sp);
+      const mine = user && sp.ownerUid === user.uid;
+      const li = document.createElement('li');
+      li.className = 'spot-card';
+      li.innerHTML = `
+        <div class="sc-top">
+          <div>
+            <div class="sc-name">${escapeHtml(sp.nombre)}</div>
+            <div class="sc-badges">
+              <span class="sc-badge ${open ? 'b-ok' : 'b-off'}">${open ? '● Disponible ahora' : '○ Cerrado ahora'}</span>
+              ${sp.ownerVerified || sp.demo ? '<span class="sc-badge b-ver">✓ Verificado</span>' : ''}
+              ${mine ? '<span class="sc-badge b-mine">★ Tu puesto</span>' : ''}
+              ${sp.demo ? '<span class="sc-badge">Ejemplo</span>' : ''}
+            </div>
+          </div>
+          <div class="sc-price"><b>${fmtCOP(sp.precio || 0)}</b><small>/ kWh</small></div>
+        </div>
+        <div class="sc-meta">
+          <span>📍 ${distTo(sp).toLocaleString('es-CO', { maximumFractionDigits: 1 })} km</span>
+          <span>⚡ ${(sp.pow || 0).toLocaleString('es-CO')} kW</span>
+          <span>🔌 ${escapeHtml(sp.puerto || '—')}</span>
+          <span class="sc-rating">★ ${avg ? avg.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : '—'} <small>(${sp.ratingCount || 0})</small></span>
+        </div>`;
+      li.addEventListener('click', () => openSpotSheet(sp));
+      ul.appendChild(li);
+    });
+  }
+
+  /* =========================================================
+     Hoja del puesto (detalle + reserva + chat)
+     ========================================================= */
+  function openSheetEl(sel) {
+    $(sel).classList.add('is-open');
+    $(sel).setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSheetEl(sel) {
+    $(sel).classList.remove('is-open');
+    $(sel).setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function openSpotSheet(sp) {
+    sheetStation = sp;
+    const open = isOpenNow(sp);
+    const avg = ratingAvg(sp);
+    const dias = sp.dias || [1, 1, 1, 1, 1, 1, 1];
+    const diasTxt = dias.every(Boolean) ? 'Todos los días' : dias.map((v, i) => v ? DIAS[i] : null).filter(Boolean).join(' · ');
+    const fotos = (sp.fotos || []).filter(Boolean);
+    const mine = user && sp.ownerUid === user.uid;
+    const c = $('#sheetContent');
+    c.innerHTML = `
+      <div class="sh-head">
+        <div>
+          <div class="sh-name">${escapeHtml(sp.nombre)}</div>
+          <div class="sh-host">de ${escapeHtml(sp.ownerName || 'Anfitrión')} · ${escapeHtml(sp.dir || '')}</div>
+          <div class="sc-badges" style="margin-top:8px">
+            <span class="sc-badge ${open ? 'b-ok' : 'b-off'}">${open ? '● Disponible ahora' : '○ Cerrado ahora'}</span>
+            ${sp.ownerVerified || sp.demo ? '<span class="sc-badge b-ver">✓ Anfitrión verificado</span>' : ''}
+            <span class="sc-badge"><span class="sc-stars">${starTxt(avg)}</span> ${avg ? avg.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : 'Nuevo'} <small>(${sp.ratingCount || 0})</small></span>
+          </div>
+        </div>
+        <div class="sc-price"><b>${fmtCOP(sp.precio || 0)}</b><small>/ kWh</small></div>
+      </div>
+
+      <div class="sh-fotos">${
+        fotos.length
+          ? fotos.map((f) => `<img src="${f}" alt="Foto del parqueadero"/>`).join('')
+          : '<div class="sh-foto-ph">📷 El anfitrión aún no sube fotos</div>'
+      }</div>
+
+      <div class="sh-specs">
+        <div class="sh-spec"><b>${distTo(sp).toLocaleString('es-CO', { maximumFractionDigits: 1 })} km</b><small>distancia</small></div>
+        <div class="sh-spec"><b>${(sp.pow || 0).toLocaleString('es-CO')} kW</b><small>potencia</small></div>
+        <div class="sh-spec"><b>${escapeHtml(sp.puerto || '—')}</b><small>puerto</small></div>
+        <div class="sh-spec"><b>~${Math.round((sp.pow || 0) * settings.kmPerKwh)} km/h</b><small>recarga</small></div>
+      </div>
+      <div class="sh-avail">🗓️ ${diasTxt} · ${escapeHtml(sp.desde || '00:00')} – ${escapeHtml(sp.hasta || '23:59')}</div>
+      ${sp.condiciones ? `<div class="bk-pay" style="margin:0 0 14px">📋 <b>Condiciones:</b> ${escapeHtml(sp.condiciones)}</div>` : ''}
+
+      <div id="shRatings"></div>
+
+      ${mine ? '<p class="hint" style="text-align:center">Así ven tu puesto los conductores 👀</p>' : `
+      <div class="grid-2">
+        <div class="field"><label>Fecha</label><div class="input-wrap"><input id="bkFecha" type="date" min="${todayISO()}" value="${todayISO()}"/></div></div>
+        <div class="field"><label>Hora de llegada</label><div class="input-wrap"><input id="bkHora" type="time" value="${escapeHtml(sp.desde || '08:00')}"/></div></div>
+      </div>
+      <div class="field" style="margin-top:10px"><label>Energía estimada</label><div class="input-wrap"><input id="bkKwh" inputmode="decimal" value="20" autocomplete="off"/><span class="unit">kWh</span></div></div>
+      <div class="sh-est"><span>Costo estimado</span><b id="bkEst">${fmtCOP(20 * (sp.precio || 0))}</b></div>
+      <button id="bkSend" class="btn-primary" type="button" style="margin-top:14px"><span class="btn-glow"></span>Solicitar reserva</button>
+      <button id="bkChat" class="btn-ghost btn-block" type="button" style="margin-top:10px">💬 Pregúntale al anfitrión</button>
+      <p class="hint" style="text-align:center;margin-top:8px">${sp.demo ? 'Puesto de ejemplo: la reserva es de prueba.' : 'El anfitrión puede aceptar o declinar tu solicitud.'}</p>`}
+    `;
+    openSheetEl('#spotSheet');
+
+    if (!mine) {
+      $('#bkKwh').addEventListener('input', () => {
+        $('#bkEst').textContent = fmtCOP(Math.max(0, parseNum($('#bkKwh').value)) * (sp.precio || 0));
+      });
+      $('#bkSend').addEventListener('click', () => submitBooking(sp));
+      $('#bkChat').addEventListener('click', () => startChatWith(sp));
+    }
+
+    if (VB) {
+      VB.stationRatings(sp.id).then((list) => {
+        if (!list.length || sheetStation !== sp) return;
+        $('#shRatings').innerHTML = '<div class="f-label" style="margin-bottom:4px">Opiniones recientes</div>' +
+          list.map((r) => `<div class="rv-item"><b>${escapeHtml(r.fromName || 'Usuario')}</b> <span class="rv-stars">${starTxt(r.stars)}</span>${r.comment ? '<br/>' + escapeHtml(r.comment) : ''}</div>`).join('');
+      });
+    }
+  }
+
+  async function submitBooking(sp) {
+    if (!user) { needLogin(); return; }
+    const fecha = $('#bkFecha').value || todayISO();
+    const hora = $('#bkHora').value || sp.desde || '08:00';
+    const kwhEst = Math.max(1, parseNum($('#bkKwh').value) || 20);
+    const dias = sp.dias || [1, 1, 1, 1, 1, 1, 1];
+    const dow = new Date(fecha + 'T12:00:00').getDay();
+    if (!dias[dow]) { toast('Ese día el puesto no está disponible', 'error'); return; }
+    if (hora < (sp.desde || '00:00') || hora > (sp.hasta || '23:59')) { toast('Elige una hora entre ' + sp.desde + ' y ' + sp.hasta, 'error'); return; }
+    try {
+      $('#bkSend').disabled = true;
+      await VB.createBooking({
+        stationId: sp.id, stationName: sp.nombre, ownerUid: sp.ownerUid, ownerName: sp.ownerName || 'Anfitrión',
+        dir: sp.dir || '', breb: sp.breb || '', titular: sp.titular || '', precio: sp.precio || 0,
+        fecha, hora, kwhEst, total: kwhEst * (sp.precio || 0), demo: !!sp.demo
+      });
+      closeSheetEl('#spotSheet');
+      goView('bookings');
+      toast('Solicitud enviada al anfitrión 📨');
+    } catch (e) {
+      $('#bkSend').disabled = false;
+      toast(e.message === 'login' ? 'Inicia sesión para reservar' : 'No se pudo crear la reserva', 'error');
+      if (e.message === 'login') openLoginSheet();
+    }
+  }
+
+  /* =========================================================
+     Reservas (conductor)
+     ========================================================= */
+  const PILL = {
+    pendiente: ['p-pend', 'Pendiente'], confirmada: ['p-ok', 'Confirmada'],
+    rechazada: ['p-no', 'Rechazada'], cancelada: ['p-dim', 'Cancelada'], completada: ['p-dim', 'Completada']
+  };
+
+  function renderBookings() {
+    const logged = !!user;
+    $('#bookAuth').classList.toggle('hidden', logged);
+    const ul = $('#bookList');
+    ul.innerHTML = '';
+    $('#bookEmpty').classList.toggle('hidden', !logged || myBookings.length > 0);
+    if (!logged) return;
+
+    myBookings.forEach((bk) => {
+      const [cls, lab] = PILL[bk.estado] || ['p-dim', bk.estado];
+      const li = document.createElement('li');
+      li.className = 'book-card';
+      const fechaTxt = new Date(bk.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' });
+      li.innerHTML = `
+        <div class="bk-top">
+          <div><div class="bk-name">${escapeHtml(bk.stationName)}</div><div class="bk-sub">de ${escapeHtml(bk.ownerName || '')} · ${escapeHtml(bk.dir || '')}</div></div>
+          <span class="bk-pill ${cls}">${lab}</span>
+        </div>
+        <div class="bk-meta">
+          <span>🗓️ ${fechaTxt} · ${escapeHtml(bk.hora)}</span>
+          <span>⚡ ~${fmtKwh(bk.kwhEst)} kWh</span>
+          <span>💰 ${fmtCOP(bk.total)} aprox.</span>
+        </div>
+        ${bk.estado === 'confirmada' && bk.breb ? `
+        <div class="bk-pay">Al terminar tu carga, transfiere por <b>Bre-B</b> a la llave
+          <span class="bk-key">${escapeHtml(bk.breb)}</span> · Titular: <b>${escapeHtml(bk.titular || bk.ownerName)}</b>
+          <div class="bk-actions"><button class="btn-ghost btn-sm" data-copy="${escapeHtml(bk.breb)}">Copiar llave</button></div>
+        </div>` : ''}
+        <div class="bk-actions">
+          ${bk.estado === 'pendiente' ? `<button class="btn-ghost btn-sm btn-danger" data-cancel="${bk.id}">Cancelar</button>` : ''}
+          ${(bk.estado === 'confirmada' || bk.estado === 'completada') && !bk.ratedByDriver ? `<button class="btn-ok" data-rate="${bk.id}">⭐ Calificar</button>` : ''}
+          ${bk.ratedByDriver ? '<span class="sc-badge b-ok">✓ Calificado</span>' : ''}
+        </div>`;
+      ul.appendChild(li);
+    });
+
+    $$('#bookList [data-cancel]').forEach((b) => b.addEventListener('click', () => {
+      VB.updateBooking(b.getAttribute('data-cancel'), { estado: 'cancelada' }).then(() => toast('Solicitud cancelada')).catch(() => toast('Error al cancelar', 'error'));
+    }));
+    $$('#bookList [data-copy]').forEach((b) => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.getAttribute('data-copy')); toast('Llave Bre-B copiada 📋'); } catch (e) { toast('No se pudo copiar', 'error'); }
+    }));
+    $$('#bookList [data-rate]').forEach((b) => b.addEventListener('click', () => {
+      const bk = myBookings.find((x) => x.id === b.getAttribute('data-rate'));
+      if (bk) openRateSheet({ bookingId: bk.id, stationId: bk.stationId, toName: bk.ownerName || 'el anfitrión', tipo: 'driver-host' });
+    }));
+  }
+
+  /* =========================================================
+     Anfitrión: mi puesto + solicitudes
+     ========================================================= */
+  function renderHostArea() { renderSpotCard(); renderRequests(); }
+
+  function buildDiasChips() {
+    const wrap = $('#spDias');
+    wrap.style.gridTemplateColumns = 'repeat(7,1fr)';
+    DIAS.forEach((d, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip' + (spDias[i] ? ' is-active' : ''); b.textContent = d;
+      b.addEventListener('click', () => { spDias[i] = spDias[i] ? 0 : 1; b.classList.toggle('is-active', !!spDias[i]); });
+      wrap.appendChild(b);
+    });
+  }
+
+  function renderFotoThumbs() {
+    const wrap = $('#spFotoThumbs');
+    $$('.foto-thumb', wrap).forEach((t) => t.remove());
+    const addBtn = $('.foto-add', wrap);
+    spFotos.forEach((f, i) => {
+      const d = document.createElement('div');
+      d.className = 'foto-thumb';
+      d.innerHTML = `<img src="${f}" alt=""/><button class="foto-del" type="button" data-i="${i}">✕</button>`;
+      d.querySelector('.foto-del').addEventListener('click', () => { spFotos.splice(i, 1); renderFotoThumbs(); });
+      wrap.insertBefore(d, addBtn);
+    });
+    addBtn.style.display = spFotos.length >= 3 ? 'none' : '';
+  }
+
+  function compressImage(file) {
+    return new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 900 / img.width);
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * scale);
+        cv.height = Math.round(img.height * scale);
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        let q = 0.72, url = cv.toDataURL('image/jpeg', q);
+        while (url.length > 260000 && q > 0.3) { q -= 0.12; url = cv.toDataURL('image/jpeg', q); }
+        URL.revokeObjectURL(img.src);
+        res(url.length > 300000 ? null : url);
+      };
+      img.onerror = () => res(null);
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function initPickMap() {
+    if (!window.L || !$('#pickMap')) return;
+    if (pickMap) { pickMap.invalidateSize(); return; }
+    pickMap = L.map('pickMap', { zoomControl: true, attributionControl: false }).setView([spLoc.lat, spLoc.lng], 12);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(pickMap);
+    pickMarker = L.marker([spLoc.lat, spLoc.lng], {
+      draggable: true,
+      icon: L.divIcon({ className: '', html: '<div class="v-pin"><div class="vp-dot"><span>⚡</span></div></div>', iconSize: [34, 34], iconAnchor: [17, 30] })
+    }).addTo(pickMap);
+    const sync = () => {
+      const p = pickMarker.getLatLng();
+      spLoc = { lat: +p.lat.toFixed(5), lng: +p.lng.toFixed(5) };
+      $('#spLatLng').textContent = spLoc.lat + ', ' + spLoc.lng;
+    };
+    pickMarker.on('dragend', sync);
+    pickMap.on('click', (e) => { pickMarker.setLatLng(e.latlng); sync(); });
+    sync();
+    setTimeout(() => pickMap.invalidateSize(), 200);
+  }
+
+  function loadSpotForm(sp) {
+    if (sp) {
+      $('#spName').value = sp.nombre || '';
+      $('#spDir').value = sp.dir || '';
+      $('#spPrecio').value = sp.precio || '';
+      $('#spPow').value = String(sp.pow || 7.4);
+      $('#spPort').value = sp.puerto || 'Tipo 2';
+      $('#spDesde').value = sp.desde || '07:00';
+      $('#spHasta').value = sp.hasta || '21:00';
+      $('#spBreb').value = sp.breb || '';
+      $('#spTitular').value = sp.titular || '';
+      $('#spCond').value = sp.condiciones || '';
+      (sp.dias || []).forEach((v, i) => { spDias[i] = v ? 1 : 0; });
+      $$('#spDias .chip').forEach((c, i) => c.classList.toggle('is-active', !!spDias[i]));
+      spFotos = (sp.fotos || []).slice(0, 3);
+      if (sp.lat != null) spLoc = { lat: sp.lat, lng: sp.lng };
+      const sw = $('#spVisible');
+      sw.classList.toggle('is-on', sp.visible !== false);
+      sw.setAttribute('aria-checked', String(sp.visible !== false));
+    }
+    renderFotoThumbs();
+    setTimeout(() => {
+      initPickMap();
+      if (pickMap && pickMarker) { pickMarker.setLatLng([spLoc.lat, spLoc.lng]); pickMap.setView([spLoc.lat, spLoc.lng], 13); $('#spLatLng').textContent = spLoc.lat + ', ' + spLoc.lng; }
+    }, 100);
+  }
+
+  async function saveSpot() {
+    if (!user) { needLogin(); return; }
+    const nombre = $('#spName').value.trim();
+    if (!nombre) { toast('Ponle un nombre a tu puesto', 'error'); return; }
+    const data = {
+      nombre,
+      dir: $('#spDir').value.trim(),
+      precio: Math.max(0, Math.round(parseNum($('#spPrecio').value))) || settings.pricePerKwh,
+      pow: parseFloat($('#spPow').value),
+      puerto: $('#spPort').value,
+      desde: $('#spDesde').value || '07:00',
+      hasta: $('#spHasta').value || '21:00',
+      dias: spDias.slice(),
+      breb: $('#spBreb').value.trim(),
+      titular: $('#spTitular').value.trim(),
+      condiciones: $('#spCond').value.trim(),
+      fotos: spFotos.slice(0, 3),
+      lat: spLoc.lat, lng: spLoc.lng,
+      visible: $('#spVisible').classList.contains('is-on')
+    };
+    try {
+      $('#spotSaveBtn').disabled = true;
+      $('#spotSaveBtn').textContent = 'Publicando…';
+      const id = await VB.publishStation(data, myStationDoc && myStationDoc.id);
+      myStationDoc = Object.assign({ id }, myStationDoc || {}, data);
+      spotEditing = false;
+      renderSpotCard();
+      toast('¡Tu puesto quedó publicado en el mapa! ⚡');
+    } catch (e) {
+      toast(e.message === 'login' ? 'Inicia sesión para publicar' : 'No se pudo publicar: ' + e.message, 'error');
+    } finally {
+      $('#spotSaveBtn').disabled = false;
+      $('#spotSaveBtn').textContent = 'Publicar mi puesto';
+    }
+  }
+
+  function renderSpotCard() {
+    const logged = !!user;
+    $('#spotAuth').classList.toggle('hidden', logged);
+    const sp = myStationDoc;
+    const editing = logged && (spotEditing || !sp);
+    $('#spotForm').classList.toggle('hidden', !editing);
+    $('#spotSummary').classList.toggle('hidden', !logged || editing || !sp);
+    $('#spotEditBtn').classList.toggle('hidden', !logged || editing || !sp);
+    if (editing) loadSpotForm(sp);
+    if (sp && logged && !editing) {
+      const avg = ratingAvg(sp);
+      $('#spotSummary').innerHTML = `
+        <div class="spot-summary-box">
+          <div class="ssb-row">
+            ${sp.fotos && sp.fotos[0] ? `<div class="foto-thumb" style="width:52px;height:52px"><img src="${sp.fotos[0]}" alt=""/></div>`
+              : '<div class="station-tile"><svg viewBox="0 0 100 100" width="24" height="24"><path d="M57 14 L28 56 H46 L41 86 L73 42 H53 Z" fill="currentColor"/></svg></div>'}
+            <div>
+              <div class="station-name">${escapeHtml(sp.nombre)}</div>
+              <div class="station-owner">${escapeHtml(sp.dir || 'Sin dirección')} · ${fmtCOP(sp.precio)}/kWh</div>
+            </div>
+          </div>
+          <div class="ssb-meta">
+            <span class="sc-badge">⚡ ${(sp.pow || 0).toLocaleString('es-CO')} kW</span>
+            <span class="sc-badge">🔌 ${escapeHtml(sp.puerto)}</span>
+            <span class="sc-badge">🗓️ ${escapeHtml(sp.desde)}–${escapeHtml(sp.hasta)}</span>
+            <span class="sc-badge ${sp.visible !== false ? 'b-ok' : 'b-off'}">${sp.visible !== false ? '● Visible en el mapa' : '○ Oculto'}</span>
+            <span class="sc-badge"><span class="sc-stars">★</span> ${avg ? avg.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : 'Nuevo'} (${sp.ratingCount || 0})</span>
+          </div>
+        </div>`;
+    }
+  }
+
+  function renderRequests() {
+    const ul = $('#reqList');
+    ul.innerHTML = '';
+    $('#reqEmpty').classList.toggle('hidden', myRequests.length > 0);
+    myRequests.forEach((rq) => {
+      const [cls, lab] = PILL[rq.estado] || ['p-dim', rq.estado];
+      const li = document.createElement('li');
+      li.className = 'book-card';
+      const fechaTxt = new Date(rq.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' });
+      li.innerHTML = `
+        <div class="bk-top">
+          <div><div class="bk-name">${escapeHtml(rq.driverName || 'Conductor')}</div><div class="bk-sub">${escapeHtml(rq.stationName || '')}</div></div>
+          <span class="bk-pill ${cls}">${lab}</span>
+        </div>
+        <div class="bk-meta">
+          <span>🗓️ ${fechaTxt} · ${escapeHtml(rq.hora)}</span>
+          <span>⚡ ~${fmtKwh(rq.kwhEst)} kWh</span>
+          <span>💰 ${fmtCOP(rq.total)} aprox.</span>
+        </div>
+        <div class="bk-actions">
+          ${rq.estado === 'pendiente' ? `<button class="btn-ok" data-acc="${rq.id}">Aceptar</button><button class="btn-ghost btn-danger" data-rej="${rq.id}">Declinar</button>` : ''}
+          ${rq.estado === 'confirmada' ? `<button class="btn-ghost btn-sm" data-done="${rq.id}">Marcar completada</button>` : ''}
+          ${(rq.estado === 'confirmada' || rq.estado === 'completada') && !rq.ratedByOwner ? `<button class="btn-ghost btn-sm" data-rated="${rq.id}">⭐ Calificar conductor</button>` : ''}
+          ${rq.ratedByOwner ? '<span class="sc-badge b-ok">✓ Calificado</span>' : ''}
+        </div>`;
+      ul.appendChild(li);
+    });
+    $$('#reqList [data-acc]').forEach((b) => b.addEventListener('click', () => {
+      VB.updateBooking(b.getAttribute('data-acc'), { estado: 'confirmada' }).then(() => toast('Reserva aceptada ✅')).catch(() => toast('Error', 'error'));
+    }));
+    $$('#reqList [data-rej]').forEach((b) => b.addEventListener('click', () => {
+      VB.updateBooking(b.getAttribute('data-rej'), { estado: 'rechazada' }).then(() => toast('Reserva declinada')).catch(() => toast('Error', 'error'));
+    }));
+    $$('#reqList [data-done]').forEach((b) => b.addEventListener('click', () => {
+      VB.updateBooking(b.getAttribute('data-done'), { estado: 'completada' }).then(() => toast('Carga completada 🔋')).catch(() => toast('Error', 'error'));
+    }));
+    $$('#reqList [data-rated]').forEach((b) => b.addEventListener('click', () => {
+      const rq = myRequests.find((x) => x.id === b.getAttribute('data-rated'));
+      if (rq) openRateSheet({ bookingId: rq.id, stationId: null, toName: rq.driverName || 'el conductor', tipo: 'host-driver' });
+    }));
+  }
+
+  /* =========================================================
+     Chat
+     ========================================================= */
+  async function startChatWith(sp) {
+    if (!user) { needLogin(); return; }
+    try {
+      const chatId = await VB.openChat(sp);
+      closeSheetEl('#spotSheet');
+      openChatSheet({ chatId, title: sp.nombre, sub: 'con ' + (sp.ownerName || 'el anfitrión'), demo: !!sp.demo });
+    } catch (e) {
+      toast(e.message === 'login' ? 'Inicia sesión para chatear' : 'No se pudo abrir el chat', 'error');
+    }
+  }
+
+  function renderChatList() {
+    const logged = !!user;
+    $('#chatAuth').classList.toggle('hidden', logged);
+    const ul = $('#chatsList');
+    ul.innerHTML = '';
+    $('#chatsEmpty').classList.toggle('hidden', !logged || myChats.length > 0);
+    if (!logged) return;
+    const uidv = VB.uid();
+    myChats.forEach((ch) => {
+      const other = (ch.names && Object.keys(ch.names).filter((k) => k !== uidv).map((k) => ch.names[k])[0]) || 'Chat';
+      const when = tsDate(ch.lastAt);
+      const li = document.createElement('li');
+      li.className = 'book-card';
+      li.style.cursor = 'pointer';
+      li.innerHTML = `
+        <div class="bk-top">
+          <div><div class="bk-name">💬 ${escapeHtml(ch.stationName || other)}</div>
+          <div class="bk-sub">${escapeHtml(other)}${ch.lastMsg ? ' · ' + escapeHtml(ch.lastMsg) : ''}</div></div>
+          <span class="bk-sub">${when.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</span>
+        </div>`;
+      li.addEventListener('click', () => openChatSheet({ chatId: ch.id, title: ch.stationName || other, sub: 'con ' + other, demo: !!ch.demo }));
+      ul.appendChild(li);
+    });
+  }
+
+  function openChatSheet(ctx) {
+    chatCtx = ctx;
+    $('#chTitle').textContent = ctx.title;
+    $('#chSub').textContent = ctx.sub || '';
+    $('#chMsgs').innerHTML = '<div class="msg-day">Cargando…</div>';
+    openSheetEl('#chatSheet');
+    stopWatchers(['msgs']);
+    unsubs.msgs = VB.watchMessages(ctx.chatId, (msgs) => {
+      const box = $('#chMsgs');
+      const uidv = VB.uid();
+      let html = '';
+      let lastDay = '';
+      msgs.forEach((m) => {
+        const d = tsDate(m.at);
+        const dayKey = d.toDateString();
+        if (dayKey !== lastDay) {
+          lastDay = dayKey;
+          html += `<div class="msg-day">${d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}</div>`;
+        }
+        const mine = m.from === uidv;
+        html += `<div class="msg ${mine ? 'msg-out' : 'msg-in'}">${escapeHtml(m.text)}<span class="msg-time">${d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span></div>`;
+      });
+      if (!msgs.length) html = '<div class="msg-day">Escribe el primer mensaje 👋</div>';
+      if (ctx.demo) html += '<div class="chat-demo-note">Este es un puesto de ejemplo: el anfitrión no responderá.</div>';
+      box.innerHTML = html;
+      box.scrollTop = box.scrollHeight;
+    });
+    setTimeout(() => $('#chInput').focus(), 300);
+  }
+
+  async function sendChat() {
+    const txt = $('#chInput').value.trim();
+    if (!txt || !chatCtx) return;
+    $('#chInput').value = '';
+    try { await VB.sendMessage(chatCtx.chatId, txt); }
+    catch (e) { toast('No se pudo enviar', 'error'); $('#chInput').value = txt; }
+  }
+
+  /* =========================================================
+     Calificaciones
+     ========================================================= */
+  function openRateSheet(ctx) {
+    rateCtx = ctx;
+    rateStars = 0;
+    $('#rtTitle').textContent = ctx.tipo === 'driver-host' ? 'Califica al anfitrión' : 'Califica al conductor';
+    $('#rtSub').textContent = 'Tu opinión sobre ' + ctx.toName + ' ayuda a que la red sea confiable.';
+    $('#rtComment').value = '';
+    $$('#rtStars .star-btn').forEach((s) => s.classList.remove('on'));
+    openSheetEl('#rateSheet');
+  }
+
+  async function sendRating() {
+    if (!rateCtx) return;
+    if (!rateStars) { toast('Elige de 1 a 5 estrellas', 'error'); return; }
+    try {
+      await VB.submitRating({
+        bookingId: rateCtx.bookingId || null,
+        stationId: rateCtx.stationId || null,
+        stars: rateStars,
+        comment: $('#rtComment').value.trim().slice(0, 300),
+        tipo: rateCtx.tipo
+      });
+      closeSheetEl('#rateSheet');
+      toast('¡Gracias por calificar! ⭐');
+    } catch (e) { toast('No se pudo enviar la calificación', 'error'); }
+  }
+
+  /* =========================================================
+     Torre y apartamento (calculadora)
      ========================================================= */
   function buildTAChips() {
     const torre = $('#torreChips'), piso = $('#pisoChips'), apto = $('#aptoChips');
@@ -173,9 +831,7 @@
       b.addEventListener('click', () => { taState.unit = taState.unit === u ? null : u; renderTA(); });
       apto.appendChild(b);
     }
-    $('#taClear').addEventListener('click', () => {
-      taState.torre = null; taState.piso = null; taState.unit = null; renderTA();
-    });
+    $('#taClear').addEventListener('click', () => { taState.torre = null; taState.piso = null; taState.unit = null; renderTA(); });
   }
 
   function renderTA() {
@@ -217,9 +873,7 @@
       readingStart = parseNum($('#readingStart').value);
       readingEnd = parseNum($('#readingEnd').value);
       kwh = readingEnd - readingStart;
-    } else {
-      kwh = parseNum($('#directKwh').value);
-    }
+    } else kwh = parseNum($('#directKwh').value);
     return { driverName, carModel, serviceFee, discount, kwh, readingStart, readingEnd, torre: ta.torre, apto: ta.apto };
   }
 
@@ -300,8 +954,7 @@
   }
 
   const startWheels = (dur) => $$('#sceneMain .wheel-spin').map((w) =>
-    w.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }],
-      { duration: dur, iterations: Infinity, easing: 'linear' }));
+    w.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }], { duration: dur, iterations: Infinity, easing: 'linear' }));
 
   function burstPort() {
     anim.running.push($('#portBurst').animate(
@@ -453,7 +1106,6 @@
     document.body.style.overflow = '';
     $('.scene-holder').classList.remove('flash');
     clearAnims();
-    // dejar el vehículo "parqueado" para la escena en reposo (stage-mini usa <use>)
     $('#evCar').style.transform = 'translateX(0)';
     setBattery(100);
   }
@@ -498,18 +1150,16 @@
   }
 
   function saveSession(calc) {
-    const s = Object.assign({ id: uid('s'), dateISO: calc.dateISO || new Date().toISOString() }, calc);
+    const s = Object.assign({ id: uid8('s'), dateISO: calc.dateISO || new Date().toISOString() }, calc);
     sessions.unshift(s);
     persistSessions();
     return s;
   }
 
   /* =========================================================
-     Historial
+     Historial + recibo + CSV
      ========================================================= */
-  const computeStats = () => sessions.reduce((a, s) => {
-    a.earn += s.total || 0; a.kwh += s.kwh || 0; a.count++; return a;
-  }, { earn: 0, kwh: 0, count: 0 });
+  const computeStats = () => sessions.reduce((a, s) => { a.earn += s.total || 0; a.kwh += s.kwh || 0; a.count++; return a; }, { earn: 0, kwh: 0, count: 0 });
 
   function taLabel(s) {
     const parts = [];
@@ -554,7 +1204,7 @@
 
     $$('#histList [data-del]').forEach((b) => b.addEventListener('click', () => {
       sessions = sessions.filter((x) => x.id !== b.getAttribute('data-del'));
-      persistSessions(); renderHistory(); toast('Carga eliminada');
+      persistSessions(); renderHistory(); renderCharts(); toast('Carga eliminada');
     }));
     $$('#histList [data-share]').forEach((b) => b.addEventListener('click', () => {
       const s = sessions.find((x) => x.id === b.getAttribute('data-share'));
@@ -562,9 +1212,6 @@
     }));
   }
 
-  /* =========================================================
-     Recibo / compartir / CSV
-     ========================================================= */
   function receiptText(calc) {
     const L = [];
     L.push('⚡ *Voltio* — Recibo de carga');
@@ -626,7 +1273,7 @@
   }
 
   /* =========================================================
-     Gráficas (2, con unidades)
+     Gráficas
      ========================================================= */
   const dayKey = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 
@@ -666,11 +1313,12 @@
     tm.textContent = fmtCompact(maxVal, metric);
     svg.appendChild(tm);
     const base = svgEl('line', { x1: X0, x2: X1, y1: Y1, y2: Y1 });
-    base.style.stroke = 'rgba(255,255,255,0.14)'; base.style.strokeWidth = '1.5';
+    base.style.stroke = 'rgba(255,255,255,0.14)';
+    base.style.strokeWidth = '1.5';
     svg.appendChild(base);
   }
 
-  function drawBars(svg, buckets, metric, unit) {
+  function drawBars(svg, buckets, metric) {
     const X0 = 14, X1 = 350, Y0 = 36, Y1 = 200, LABY = 220;
     const vals = buckets.map((b) => metric === 'cop' ? b.cop : b.kwh);
     const max = Math.max.apply(null, vals.concat([0.001])) * 1.05;
@@ -698,7 +1346,7 @@
       if (!zero) {
         const vt = svgEl('text', { x: cx.toFixed(1), y: (Y1 - h - 8).toFixed(1), 'text-anchor': 'middle', 'font-size': '9.5', 'font-weight': '700', fill: '#eaf2ff', 'font-family': 'Orbitron, sans-serif', class: 'chart-val' });
         vt.style.transitionDelay = (i * 55 + 250) + 'ms';
-        vt.textContent = fmtCompact(v, metric) + (metric === 'kwh' ? '' : '');
+        vt.textContent = fmtCompact(v, metric);
         svg.appendChild(vt);
       }
       const lt = svgEl('text', { x: cx.toFixed(1), y: LABY, 'text-anchor': 'middle', 'font-size': '9', fill: 'rgba(159,178,204,0.85)' });
@@ -713,12 +1361,7 @@
     const max = Math.max.apply(null, vals.concat([0.001])) * 1.1;
     drawGrid(svg, X0, X1, Y0, Y1, max, metric);
     const span = (X1 - X0) / buckets.length;
-    const pts = buckets.map((b, i) => ({
-      x: X0 + span * i + span / 2,
-      y: Y1 - Math.max(0, (b.kwh / max)) * (Y1 - Y0),
-      b
-    }));
-    // línea suavizada
+    const pts = buckets.map((b, i) => ({ x: X0 + span * i + span / 2, y: Y1 - Math.max(0, (b.kwh / max)) * (Y1 - Y0), b }));
     let d = 'M ' + pts[0].x.toFixed(1) + ' ' + pts[0].y.toFixed(1);
     for (let i = 1; i < pts.length; i++) {
       const p0 = pts[i - 1], p1 = pts[i];
@@ -751,7 +1394,6 @@
       lt.textContent = p.b.label;
       svg.appendChild(lt);
     });
-    // rAF con respaldo por temporizador (pestañas en 2º plano no pintan frames)
     const reveal = () => { line.style.strokeDashoffset = '0'; area.style.opacity = '1'; };
     requestAnimationFrame(() => requestAnimationFrame(reveal));
     setTimeout(reveal, 120);
@@ -774,399 +1416,15 @@
     const totCount = buckets.reduce((a, b) => a + b.count, 0);
     $('#chartPeriod').textContent = chartState.group === 'day' ? 'Últimos 8 días' : 'Top vecinos';
 
-    drawBars(A, buckets, 'cop', 'COP');
+    drawBars(A, buckets, 'cop');
     $('#chartFootA').innerHTML = `<span>Total del período</span><b>${fmtCOP(totCop)}</b>`;
-
     if (chartState.group === 'day') drawArea(B, buckets, 'kwh');
-    else drawBars(B, buckets, 'kwh', 'kWh');
+    else drawBars(B, buckets, 'kwh');
     $('#chartFootB').innerHTML = `<span>${totCount} ${totCount === 1 ? 'carga' : 'cargas'} en total</span><b>${fmtKwh(totKwh)} kWh</b>`;
 
     const reveal = () => { A.classList.add('chart-in'); B.classList.add('chart-in'); };
     requestAnimationFrame(() => requestAnimationFrame(reveal));
     setTimeout(reveal, 120);
-  }
-
-  /* =========================================================
-     Mapa + puestos
-     ========================================================= */
-  function allSpots() {
-    const list = DEMO_SPOTS.slice();
-    const my = settings.mySpot;
-    if (my && my.visible) {
-      list.unshift(Object.assign({}, my, { id: 'mine', mine: true, x: 160, y: 138, distKm: 0, rating: 5.0, votes: 1, host: settings.ownerName || 'Tú' }));
-    }
-    return list;
-  }
-
-  function isOpenNow(sp) {
-    const now = new Date();
-    if (!sp.dias[now.getDay()]) return false;
-    const cur = now.getHours() * 60 + now.getMinutes();
-    const [h1, m1] = sp.desde.split(':').map(Number);
-    const [h2, m2] = sp.hasta.split(':').map(Number);
-    return cur >= h1 * 60 + m1 && cur <= h2 * 60 + m2;
-  }
-
-  function filteredSpots() {
-    let list = allSpots().filter((sp) =>
-      sp.precio <= filters.maxPrice &&
-      sp.pow >= filters.minPow &&
-      (filters.port === 'all' || sp.puerto === filters.port) &&
-      (!filters.now || isOpenNow(sp))
-    );
-    if (filters.sort === 'dist') list.sort((a, b) => a.distKm - b.distKm);
-    if (filters.sort === 'price') list.sort((a, b) => a.precio - b.precio);
-    if (filters.sort === 'pow') list.sort((a, b) => b.pow - a.pow);
-    return list;
-  }
-
-  function diasLabel(sp) {
-    if (sp.dias.every(Boolean)) return 'Todos los días';
-    const on = sp.dias.map((v, i) => v ? DIAS[i] : null).filter(Boolean);
-    return on.join(' · ');
-  }
-
-  function renderMap() {
-    const svg = $('#mapSvg');
-    svg.innerHTML = '';
-    const visible = filteredSpots();
-    const visibleIds = new Set(visible.map((s) => s.id));
-
-    // fondo tipo ciudad
-    for (let gx = 20; gx < 360; gx += 34) svg.appendChild(svgEl('line', { x1: gx, y1: 8, x2: gx, y2: 232, class: 'mp-grid' }));
-    for (let gy = 16; gy < 240; gy += 34) svg.appendChild(svgEl('line', { x1: 8, y1: gy, x2: 352, y2: gy, class: 'mp-grid' }));
-    svg.appendChild(svgEl('path', { d: 'M 0 190 C 90 170, 150 200, 240 150 S 360 110, 360 110', fill: 'none', class: 'mp-road' }));
-    svg.appendChild(svgEl('path', { d: 'M 60 0 C 90 80, 170 90, 200 240', fill: 'none', class: 'mp-road' }));
-    svg.appendChild(svgEl('path', { d: 'M 0 190 C 90 170, 150 200, 240 150 S 360 110, 360 110', fill: 'none', class: 'mp-road2' }));
-
-    // anillos de distancia
-    [[46, '1 km'], [92, '3 km']].forEach(([r, lab]) => {
-      svg.appendChild(svgEl('circle', { cx: 180, cy: 118, r, fill: 'none', class: 'mp-ring' }));
-      const t = svgEl('text', { x: 180 + 6, y: 118 - r + 11, class: 'mp-ring-label' });
-      t.textContent = lab;
-      svg.appendChild(t);
-    });
-
-    // yo
-    svg.appendChild(svgEl('circle', { cx: 180, cy: 118, r: 6, fill: 'none', class: 'mp-me-ring' }));
-    svg.appendChild(svgEl('circle', { cx: 180, cy: 118, r: 5, class: 'mp-me' }));
-    const meT = svgEl('text', { x: 180, y: 108, 'text-anchor': 'middle', 'font-size': '8.5', fill: 'rgba(234,242,255,0.8)', 'font-weight': '700' });
-    meT.textContent = 'Tú';
-    svg.appendChild(meT);
-
-    // pines
-    allSpots().forEach((sp) => {
-      const open = isOpenNow(sp);
-      const dim = !visibleIds.has(sp.id);
-      const g = svgEl('g', { class: 'mp-pin' + (open ? '' : ' pin-off') + (dim ? ' pin-dim' : '') });
-      g.appendChild(svgEl('circle', { class: 'pin-bg', cx: sp.x, cy: sp.y, r: 11 }));
-      const bolt = svgEl('path', { class: 'pin-bolt', d: `M${sp.x + 2} ${sp.y - 6} L${sp.x - 4} ${sp.y + 1} H${sp.x - 0.5} L${sp.x - 2} ${sp.y + 6} L${sp.x + 4} ${sp.y - 1} H${sp.x + 0.5} Z` });
-      g.appendChild(bolt);
-      const label = svgEl('text', { x: sp.x, y: sp.y + 23, 'text-anchor': 'middle' });
-      label.textContent = sp.mine ? 'Tu puesto' : fmtCompact(sp.precio, 'cop');
-      g.appendChild(label);
-      if (!dim) g.addEventListener('click', () => openSheet(sp));
-      svg.appendChild(g);
-    });
-
-    $('#mapCount').textContent = visible.length + (visible.length === 1 ? ' puesto' : ' puestos');
-    renderSpotList(visible);
-  }
-
-  function renderSpotList(list) {
-    const ul = $('#mapList');
-    ul.innerHTML = '';
-    $('#mapEmpty').classList.toggle('hidden', list.length > 0);
-    list.forEach((sp) => {
-      const open = isOpenNow(sp);
-      const li = document.createElement('li');
-      li.className = 'spot-card';
-      li.innerHTML = `
-        <div class="sc-top">
-          <div>
-            <div class="sc-name">${escapeHtml(sp.nombre)}</div>
-            <div class="sc-badges">
-              <span class="sc-badge ${open ? 'b-ok' : 'b-off'}">${open ? '● Disponible ahora' : '○ Cerrado ahora'}</span>
-              ${sp.verificado ? '<span class="sc-badge b-ver">✓ Verificado</span>' : ''}
-              ${sp.mine ? '<span class="sc-badge b-mine">★ Tu puesto</span>' : ''}
-            </div>
-          </div>
-          <div class="sc-price"><b>${fmtCOP(sp.precio)}</b><small>/ kWh</small></div>
-        </div>
-        <div class="sc-meta">
-          <span>📍 ${sp.mine ? 'Tu ubicación' : sp.distKm.toLocaleString('es-CO') + ' km'}</span>
-          <span>⚡ ${sp.pow.toLocaleString('es-CO')} kW</span>
-          <span>🔌 ${sp.puerto}</span>
-          <span class="sc-rating">★ ${sp.rating.toLocaleString('es-CO', { minimumFractionDigits: 1 })}</span>
-        </div>`;
-      li.addEventListener('click', () => openSheet(sp));
-      ul.appendChild(li);
-    });
-  }
-
-  /* =========================================================
-     Hoja de reserva
-     ========================================================= */
-  function openSheet(sp) {
-    sheetSpot = sp;
-    const open = isOpenNow(sp);
-    const c = $('#sheetContent');
-    c.innerHTML = `
-      <div class="sh-head">
-        <div>
-          <div class="sh-name">${escapeHtml(sp.nombre)}</div>
-          <div class="sh-host">de ${escapeHtml(sp.host)} · ${escapeHtml(sp.dir)}</div>
-          <div class="sc-badges" style="margin-top:8px">
-            <span class="sc-badge ${open ? 'b-ok' : 'b-off'}">${open ? '● Disponible ahora' : '○ Cerrado ahora'}</span>
-            ${sp.verificado ? '<span class="sc-badge b-ver">✓ Verificado</span>' : ''}
-            <span class="sc-badge">★ ${sp.rating.toLocaleString('es-CO', { minimumFractionDigits: 1 })} (${sp.votes})</span>
-          </div>
-        </div>
-        <div class="sc-price"><b>${fmtCOP(sp.precio)}</b><small>/ kWh</small></div>
-      </div>
-      <div class="sh-specs">
-        <div class="sh-spec"><b>${sp.mine ? '—' : sp.distKm.toLocaleString('es-CO') + ' km'}</b><small>distancia</small></div>
-        <div class="sh-spec"><b>${sp.pow.toLocaleString('es-CO')} kW</b><small>potencia</small></div>
-        <div class="sh-spec"><b>${sp.puerto}</b><small>puerto</small></div>
-        <div class="sh-spec"><b>~${Math.round(sp.pow * settings.kmPerKwh)} km/h</b><small>recarga</small></div>
-      </div>
-      <div class="sh-avail">🗓️ ${diasLabel(sp)} · ${sp.desde} – ${sp.hasta}</div>
-      ${sp.mine ? '<p class="hint">Este es tu puesto publicado. Así lo ven los conductores 👀</p>' : `
-      <div class="grid-2">
-        <div class="field"><label>Fecha</label><div class="input-wrap"><input id="bkFecha" type="date" min="${todayISO()}" value="${todayISO()}"/></div></div>
-        <div class="field"><label>Hora de llegada</label><div class="input-wrap"><input id="bkHora" type="time" value="${sp.desde}"/></div></div>
-      </div>
-      <div class="field" style="margin-top:10px"><label>Energía estimada</label><div class="input-wrap"><input id="bkKwh" inputmode="decimal" value="20" autocomplete="off"/><span class="unit">kWh</span></div></div>
-      <div class="sh-est"><span>Costo estimado</span><b id="bkEst">${fmtCOP(20 * sp.precio)}</b></div>
-      <button id="bkSend" class="btn-primary" type="button" style="margin-top:14px">
-        <span class="btn-glow"></span>
-        Solicitar reserva
-      </button>
-      <p class="hint" style="text-align:center;margin-top:8px">El anfitrión puede aceptar o declinar tu solicitud.</p>`}
-    `;
-    $('#spotSheet').classList.add('is-open');
-    $('#spotSheet').setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-
-    if (!sp.mine) {
-      const est = () => { $('#bkEst').textContent = fmtCOP(Math.max(0, parseNum($('#bkKwh').value)) * sp.precio); };
-      $('#bkKwh').addEventListener('input', est);
-      $('#bkSend').addEventListener('click', () => submitBooking(sp));
-    }
-  }
-
-  function closeSheet() {
-    $('#spotSheet').classList.remove('is-open');
-    $('#spotSheet').setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-    sheetSpot = null;
-  }
-
-  function submitBooking(sp) {
-    const fecha = $('#bkFecha').value || todayISO();
-    const hora = $('#bkHora').value || sp.desde;
-    const kwhEst = Math.max(1, parseNum($('#bkKwh').value) || 20);
-    const dow = new Date(fecha + 'T12:00:00').getDay();
-    if (!sp.dias[dow]) { toast('Ese día el puesto no está disponible', 'error'); return; }
-    if (hora < sp.desde || hora > sp.hasta) { toast('Elige una hora entre ' + sp.desde + ' y ' + sp.hasta, 'error'); return; }
-    const bk = {
-      id: uid('b'), spotId: sp.id, spotName: sp.nombre, hostName: sp.host, dir: sp.dir,
-      breb: sp.breb, titular: sp.titular, precio: sp.precio,
-      fecha, hora, kwhEst, total: kwhEst * sp.precio,
-      estado: 'pendiente', createdAt: Date.now()
-    };
-    bookings.unshift(bk);
-    persistBookings();
-    closeSheet();
-    goView('bookings');
-    toast('Solicitud enviada al anfitrión 📨');
-    scheduleAutoConfirm(bk.id);
-  }
-
-  // Demo: el "anfitrión" responde a los pocos segundos
-  function scheduleAutoConfirm(id) {
-    setTimeout(() => {
-      const bk = bookings.find((b) => b.id === id);
-      if (bk && bk.estado === 'pendiente') {
-        bk.estado = 'confirmada';
-        persistBookings();
-        if (currentView === 'bookings') renderBookings();
-        toast('¡' + bk.hostName + ' confirmó tu reserva! ✅');
-      }
-    }, 8000);
-  }
-
-  function renderBookings() {
-    const ul = $('#bookList');
-    ul.innerHTML = '';
-    $('#bookEmpty').classList.toggle('hidden', bookings.length > 0);
-    const PILL = { pendiente: ['p-pend', 'Pendiente'], confirmada: ['p-ok', 'Confirmada'], rechazada: ['p-no', 'Rechazada'], cancelada: ['p-dim', 'Cancelada'] };
-    bookings.forEach((bk) => {
-      const [cls, lab] = PILL[bk.estado] || ['p-dim', bk.estado];
-      const li = document.createElement('li');
-      li.className = 'book-card';
-      const fechaTxt = new Date(bk.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' });
-      li.innerHTML = `
-        <div class="bk-top">
-          <div><div class="bk-name">${escapeHtml(bk.spotName)}</div><div class="bk-sub">de ${escapeHtml(bk.hostName)} · ${escapeHtml(bk.dir || '')}</div></div>
-          <span class="bk-pill ${cls}">${lab}</span>
-        </div>
-        <div class="bk-meta">
-          <span>🗓️ ${fechaTxt} · ${bk.hora}</span>
-          <span>⚡ ~${fmtKwh(bk.kwhEst)} kWh</span>
-          <span>💰 ${fmtCOP(bk.total)} aprox.</span>
-        </div>
-        ${bk.estado === 'confirmada' && bk.breb ? `
-        <div class="bk-pay">Al terminar tu carga, transfiere por <b>Bre-B</b> a la llave
-          <span class="bk-key">${escapeHtml(bk.breb)}</span> · Titular: <b>${escapeHtml(bk.titular || bk.hostName)}</b>
-          <div class="bk-actions"><button class="btn-ghost btn-sm" data-copy="${escapeHtml(bk.breb)}">Copiar llave</button></div>
-        </div>` : ''}
-        ${bk.estado === 'pendiente' ? `<div class="bk-actions"><button class="btn-ghost btn-sm btn-danger" data-cancel="${bk.id}">Cancelar solicitud</button></div>` : ''}
-      `;
-      ul.appendChild(li);
-    });
-    $$('#bookList [data-cancel]').forEach((b) => b.addEventListener('click', () => {
-      const bk = bookings.find((x) => x.id === b.getAttribute('data-cancel'));
-      if (bk) { bk.estado = 'cancelada'; persistBookings(); renderBookings(); toast('Solicitud cancelada'); }
-    }));
-    $$('#bookList [data-copy]').forEach((b) => b.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(b.getAttribute('data-copy')); toast('Llave Bre-B copiada 📋'); }
-      catch (e) { toast('No se pudo copiar', 'error'); }
-    }));
-  }
-
-  /* =========================================================
-     Anfitrión: mi puesto + solicitudes
-     ========================================================= */
-  function buildDiasChips() {
-    const wrap = $('#spDias');
-    wrap.style.gridTemplateColumns = 'repeat(7,1fr)';
-    DIAS.forEach((d, i) => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'chip' + (spDias[i] ? ' is-active' : ''); b.textContent = d;
-      b.addEventListener('click', () => { spDias[i] = spDias[i] ? 0 : 1; b.classList.toggle('is-active', !!spDias[i]); });
-      wrap.appendChild(b);
-    });
-  }
-
-  function loadSpotForm() {
-    const sp = settings.mySpot;
-    if (!sp) return;
-    $('#spName').value = sp.nombre || '';
-    $('#spDir').value = sp.dir || '';
-    $('#spPrecio').value = sp.precio || '';
-    $('#spPow').value = String(sp.pow || 7.4);
-    $('#spPort').value = sp.puerto || 'Tipo 2';
-    $('#spDesde').value = sp.desde || '07:00';
-    $('#spHasta').value = sp.hasta || '21:00';
-    $('#spBreb').value = sp.breb || '';
-    $('#spTitular').value = sp.titular || '';
-    (sp.dias || []).forEach((v, i) => { spDias[i] = v; });
-    $$('#spDias .chip').forEach((c, i) => c.classList.toggle('is-active', !!spDias[i]));
-    const sw = $('#spVisible');
-    sw.classList.toggle('is-on', sp.visible !== false);
-    sw.setAttribute('aria-checked', String(sp.visible !== false));
-  }
-
-  function saveSpot() {
-    const nombre = $('#spName').value.trim();
-    if (!nombre) { toast('Ponle un nombre a tu puesto', 'error'); return; }
-    settings.mySpot = {
-      nombre,
-      dir: $('#spDir').value.trim(),
-      precio: Math.max(0, Math.round(parseNum($('#spPrecio').value))) || settings.pricePerKwh,
-      pow: parseFloat($('#spPow').value),
-      puerto: $('#spPort').value,
-      desde: $('#spDesde').value || '07:00',
-      hasta: $('#spHasta').value || '21:00',
-      dias: spDias.slice(),
-      breb: $('#spBreb').value.trim(),
-      titular: $('#spTitular').value.trim(),
-      visible: $('#spVisible').classList.contains('is-on')
-    };
-    persistSettings();
-    spotEditing = false;
-    renderSpotCard();
-    toast('¡Tu puesto quedó publicado! ⚡');
-  }
-
-  function renderSpotCard() {
-    const sp = settings.mySpot;
-    const editing = spotEditing || !sp;
-    $('#spotForm').classList.toggle('hidden', !editing);
-    $('#spotSummary').classList.toggle('hidden', editing);
-    $('#spotEditBtn').classList.toggle('hidden', editing);
-    if (sp && !editing) {
-      $('#spotSummary').innerHTML = `
-        <div class="spot-summary-box">
-          <div class="ssb-row">
-            <div class="station-tile"><svg viewBox="0 0 100 100" width="24" height="24"><path d="M57 14 L28 56 H46 L41 86 L73 42 H53 Z" fill="currentColor"/></svg></div>
-            <div>
-              <div class="station-name">${escapeHtml(sp.nombre)}</div>
-              <div class="station-owner">${escapeHtml(sp.dir || 'Sin dirección')} · ${fmtCOP(sp.precio)}/kWh</div>
-            </div>
-          </div>
-          <div class="ssb-meta">
-            <span class="sc-badge">⚡ ${sp.pow.toLocaleString('es-CO')} kW</span>
-            <span class="sc-badge">🔌 ${escapeHtml(sp.puerto)}</span>
-            <span class="sc-badge">🗓️ ${sp.desde}–${sp.hasta}</span>
-            <span class="sc-badge ${sp.visible ? 'b-ok' : 'b-off'}">${sp.visible ? '● Visible en el mapa' : '○ Oculto'}</span>
-            ${sp.breb ? '<span class="sc-badge b-ver">Bre-B ✓</span>' : ''}
-          </div>
-        </div>`;
-    }
-  }
-
-  function seedRequests() {
-    if (requests !== null) return;
-    const t = new Date(); t.setDate(t.getDate() + 1);
-    const p = new Date(); p.setDate(p.getDate() + 2);
-    requests = [
-      { id: uid('q'), nombre: 'Camila R.', info: 'Torre 2 · Apto 305', fecha: dayKey(t), hora: '19:00', kwhEst: 25, estado: 'pendiente' },
-      { id: uid('q'), nombre: 'Andrés V.', info: 'Visitante · BYD Yuan', fecha: dayKey(p), hora: '10:00', kwhEst: 12, estado: 'pendiente' }
-    ];
-    persistRequests();
-  }
-
-  function renderRequests() {
-    seedRequests();
-    const ul = $('#reqList');
-    ul.innerHTML = '';
-    const list = requests || [];
-    $('#reqEmpty').classList.toggle('hidden', list.length > 0);
-    const price = (settings.mySpot && settings.mySpot.precio) || settings.pricePerKwh;
-    const PILL = { pendiente: ['p-pend', 'Pendiente'], confirmada: ['p-ok', 'Aceptada'], rechazada: ['p-no', 'Rechazada'] };
-    list.forEach((rq) => {
-      const [cls, lab] = PILL[rq.estado] || ['p-dim', rq.estado];
-      const li = document.createElement('li');
-      li.className = 'book-card';
-      const fechaTxt = new Date(rq.fecha + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: '2-digit', month: 'short' });
-      li.innerHTML = `
-        <div class="bk-top">
-          <div><div class="bk-name">${escapeHtml(rq.nombre)}</div><div class="bk-sub">${escapeHtml(rq.info)}</div></div>
-          <span class="bk-pill ${cls}">${lab}</span>
-        </div>
-        <div class="bk-meta">
-          <span>🗓️ ${fechaTxt} · ${rq.hora}</span>
-          <span>⚡ ~${fmtKwh(rq.kwhEst)} kWh</span>
-          <span>💰 ${fmtCOP(rq.kwhEst * price)} aprox.</span>
-        </div>
-        ${rq.estado === 'pendiente' ? `
-        <div class="bk-actions">
-          <button class="btn-ok" data-acc="${rq.id}">Aceptar</button>
-          <button class="btn-ghost btn-danger" data-rej="${rq.id}">Declinar</button>
-        </div>` : ''}
-      `;
-      ul.appendChild(li);
-    });
-    $$('#reqList [data-acc]').forEach((b) => b.addEventListener('click', () => {
-      const rq = requests.find((x) => x.id === b.getAttribute('data-acc'));
-      if (rq) { rq.estado = 'confirmada'; persistRequests(); renderRequests(); toast('Reserva aceptada ✅ Avisamos a ' + rq.nombre.split(' ')[0]); }
-    }));
-    $$('#reqList [data-rej]').forEach((b) => b.addEventListener('click', () => {
-      const rq = requests.find((x) => x.id === b.getAttribute('data-rej'));
-      if (rq) { rq.estado = 'rechazada'; persistRequests(); renderRequests(); toast('Reserva declinada'); }
-    }));
   }
 
   /* =========================================================
@@ -1238,7 +1496,6 @@
     sw.setAttribute('aria-checked', String(!!settings.animations));
     if (settings.serviceFee > 0 && !$('#serviceFee').value) $('#serviceFee').value = settings.serviceFee;
     renderStationCard();
-    loadSpotForm();
   }
 
   /* =========================================================
@@ -1272,19 +1529,6 @@
     });
   }
 
-  function setupNet() {
-    const pill = $('#netStatus');
-    const label = pill.querySelector('.net-label');
-    function upd() {
-      const on = navigator.onLine;
-      pill.classList.toggle('is-off', !on);
-      label.textContent = on ? 'En línea' : 'Sin conexión';
-    }
-    window.addEventListener('online', upd);
-    window.addEventListener('offline', upd);
-    upd();
-  }
-
   /* =========================================================
      Wiring / init
      ========================================================= */
@@ -1308,8 +1552,8 @@
     }
     err.classList.add('hidden');
     const calc = computeCharge();
-    calc.dateISO = new Date().toISOString(); // hora tomada al presionar "Calcular cobro"
-    saveSession(calc);                       // guardado automático
+    calc.dateISO = new Date().toISOString();
+    saveSession(calc);
     openOverlay();
     playSequence(calc);
   }
@@ -1325,29 +1569,49 @@
   function init() {
     registerSW();
     setupInstall();
-    setupNet();
     buildTAChips();
     renderTA();
     buildDiasChips();
     loadSettingsUI();
-    renderHistory();
-    setBattery(100); // escena en reposo: vehículo "cargado"
+    setBattery(100);
 
-    // Confirmaciones demo que quedaron pendientes de otra sesión
-    let dirty = false;
-    bookings.forEach((b) => {
-      if (b.estado === 'pendiente' && Date.now() - (b.createdAt || 0) > 25000) { b.estado = 'confirmada'; dirty = true; }
-      else if (b.estado === 'pendiente') scheduleAutoConfirm(b.id);
+    // Backend
+    whenVB((vb) => {
+      VB = vb;
+      VB.onAuth((u) => {
+        user = u;
+        renderAuthUI();
+        startWatchers();
+        if (currentView === 'bookings') renderBookings();
+        if (currentView === 'chats') renderChatList();
+        if (currentView === 'requests') renderHostArea();
+        if (u) { closeSheetEl('#loginSheet'); }
+      });
+      let gotSnapshot = false;
+      unsubs.stations = VB.watchStations((list) => {
+        gotSnapshot = true;
+        stations = list;
+        backendOff = false;
+        ['#mapNotice', '#reqNotice'].forEach((s) => { const el = $(s); if (el) el.classList.add('hidden'); });
+        if (liveMap || currentView === 'map') applyFilters();
+      }, (e) => {
+        backendOff = true;
+        showBackendNotice('La nube de Voltio está en configuración (Firestore pendiente). El mapa mostrará puestos apenas esté lista.');
+      });
+      setTimeout(() => {
+        if (!gotSnapshot && !stations.length) {
+          showBackendNotice('Conectando con la red Voltio… Si esto persiste, la base de datos aún está en configuración.');
+        }
+      }, 8000);
+      locateMe(true);
     });
-    if (dirty) persistBookings();
 
     // Rol
     if (settings.role === 'driver' || settings.role === 'host') applyRole(settings.role, { keepView: true });
     else {
       $('#roleGate').classList.remove('hidden');
       $('#roleGate').setAttribute('aria-hidden', 'false');
-      // mientras tanto, ocultar tabs de conductor
-      applyRolePreview();
+      $$('.nav-btn').forEach((b) => b.classList.toggle('nav-hidden', !TABS.host.includes(b.dataset.view)));
     }
     $('#roleDriverBtn').addEventListener('click', () => { applyRole('driver'); toast('Modo conductor activado 🚗'); });
     $('#roleHostBtn').addEventListener('click', () => { applyRole('host'); toast('Modo anfitrión activado 🏠'); });
@@ -1355,14 +1619,130 @@
       if (settings.role !== b.dataset.role) { applyRole(b.dataset.role, { keepView: true }); toast(b.dataset.role === 'driver' ? 'Modo conductor 🚗' : 'Modo anfitrión 🏠'); }
     }));
 
-    function applyRolePreview() {
-      $$('.nav-btn').forEach((b) => b.classList.toggle('nav-hidden', !TABS.host.includes(b.dataset.view)));
-    }
-
     // Navegación
     $$('.nav-btn').forEach((b) => b.addEventListener('click', () => goView(b.dataset.view)));
 
-    // Modo calculadora
+    // Login
+    $$('.js-open-login').forEach((b) => b.addEventListener('click', openLoginSheet));
+    $('#topAuthBtn').addEventListener('click', () => { if (user) { goView('settings'); } else openLoginSheet(); });
+    $('#lgGoogle').addEventListener('click', async () => {
+      $('#lgError').classList.add('hidden');
+      try { await VB.loginGoogle(); toast('¡Bienvenido a Voltio! ⚡'); }
+      catch (e) { $('#lgError').textContent = e.message; $('#lgError').classList.remove('hidden'); }
+    });
+    $('#lgToggle').addEventListener('click', () => {
+      lgMode = lgMode === 'login' ? 'signup' : 'login';
+      $('#lgNameField').classList.toggle('hidden', lgMode !== 'signup');
+      $('#lgSubmit').textContent = lgMode === 'signup' ? 'Crear cuenta' : 'Entrar';
+      $('#lgToggle').innerHTML = lgMode === 'signup' ? '¿Ya tienes cuenta? <b>Entrar</b>' : '¿No tienes cuenta? <b>Crear una</b>';
+    });
+    $('#lgSubmit').addEventListener('click', async () => {
+      const email = $('#lgEmail').value.trim();
+      const pass = $('#lgPass').value;
+      $('#lgError').classList.add('hidden');
+      if (!email || !pass) { $('#lgError').textContent = 'Escribe tu correo y contraseña.'; $('#lgError').classList.remove('hidden'); return; }
+      try {
+        if (lgMode === 'signup') await VB.signupEmail($('#lgName').value.trim(), email, pass);
+        else await VB.loginEmail(email, pass);
+        toast('¡Bienvenido a Voltio! ⚡');
+      } catch (e) { $('#lgError').textContent = e.message; $('#lgError').classList.remove('hidden'); }
+    });
+    $('#lgPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#lgSubmit').click(); });
+    $('#accLogout').addEventListener('click', async () => { await VB.logout(); toast('Sesión cerrada'); });
+
+    // Sheets: cerrar
+    $$('[data-close]').forEach((el) => el.addEventListener('click', () => {
+      const k = el.getAttribute('data-close');
+      if (k === 'login') closeSheetEl('#loginSheet');
+      if (k === 'spot') closeSheetEl('#spotSheet');
+      if (k === 'rate') closeSheetEl('#rateSheet');
+      if (k === 'chat') { closeSheetEl('#chatSheet'); stopWatchers(['msgs']); chatCtx = null; }
+    }));
+
+    // Mapa
+    $('#locateBtn').addEventListener('click', () => locateMe(false));
+    $$('#fSort .chip').forEach((c) => c.addEventListener('click', () => {
+      filters.sort = c.dataset.sort;
+      $$('#fSort .chip').forEach((x) => x.classList.toggle('is-active', x === c));
+      applyFilters();
+    }));
+    $('#fPrice').addEventListener('input', () => {
+      filters.maxPrice = +$('#fPrice').value;
+      $('#fPriceVal').textContent = fmtCOP(filters.maxPrice).replace(/\s?COP$/, '');
+      const r = $('#fPrice');
+      r.style.setProperty('--rangePct', ((r.value - r.min) / (r.max - r.min) * 100).toFixed(1) + '%');
+      applyFilters();
+    });
+    $$('#fPow .chip').forEach((c) => c.addEventListener('click', () => {
+      filters.minPow = +c.dataset.pow;
+      $$('#fPow .chip').forEach((x) => x.classList.toggle('is-active', x === c));
+      applyFilters();
+    }));
+    $$('#fPort .chip').forEach((c) => c.addEventListener('click', () => {
+      filters.port = c.dataset.port;
+      $$('#fPort .chip').forEach((x) => x.classList.toggle('is-active', x === c));
+      applyFilters();
+    }));
+    $('#fNow').addEventListener('click', () => {
+      filters.now = !filters.now;
+      $('#fNow').classList.toggle('is-on', filters.now);
+      $('#fNow').setAttribute('aria-checked', String(filters.now));
+      applyFilters();
+    });
+    $('#fReset').addEventListener('click', () => {
+      filters.sort = 'dist'; filters.maxPrice = 2000; filters.minPow = 0; filters.port = 'all'; filters.now = false;
+      $('#fPrice').value = 2000;
+      $('#fPriceVal').textContent = '$2.000';
+      $('#fPrice').style.setProperty('--rangePct', '100%');
+      $$('#fSort .chip').forEach((x) => x.classList.toggle('is-active', x.dataset.sort === 'dist'));
+      $$('#fPow .chip').forEach((x) => x.classList.toggle('is-active', x.dataset.pow === '0'));
+      $$('#fPort .chip').forEach((x) => x.classList.toggle('is-active', x.dataset.port === 'all'));
+      $('#fNow').classList.remove('is-on');
+      applyFilters();
+      toast('Filtros restablecidos');
+    });
+
+    // Mi puesto
+    $('#spotSaveBtn').addEventListener('click', saveSpot);
+    $('#spotEditBtn').addEventListener('click', () => { spotEditing = true; renderSpotCard(); setTimeout(() => $('#spName').focus(), 150); });
+    $('#spVisible').addEventListener('click', () => {
+      const sw = $('#spVisible');
+      sw.classList.toggle('is-on');
+      sw.setAttribute('aria-checked', String(sw.classList.contains('is-on')));
+    });
+    $('#spUseLoc').addEventListener('click', () => {
+      if (!navigator.geolocation) { toast('Sin geolocalización disponible', 'error'); return; }
+      navigator.geolocation.getCurrentPosition((pos) => {
+        spLoc = { lat: +pos.coords.latitude.toFixed(5), lng: +pos.coords.longitude.toFixed(5) };
+        if (pickMarker) pickMarker.setLatLng([spLoc.lat, spLoc.lng]);
+        if (pickMap) pickMap.setView([spLoc.lat, spLoc.lng], 15);
+        $('#spLatLng').textContent = spLoc.lat + ', ' + spLoc.lng;
+        toast('Pin puesto en tu ubicación 📍');
+      }, () => toast('No pudimos obtener tu ubicación', 'error'));
+    });
+    $('#spFotoInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []).slice(0, 3 - spFotos.length);
+      for (const f of files) {
+        const url = await compressImage(f);
+        if (url) spFotos.push(url);
+        else toast('Una imagen no se pudo procesar', 'error');
+      }
+      e.target.value = '';
+      renderFotoThumbs();
+    });
+
+    // Chat
+    $('#chSend').addEventListener('click', sendChat);
+    $('#chInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat(); });
+
+    // Calificar
+    $$('#rtStars .star-btn').forEach((s) => s.addEventListener('click', () => {
+      rateStars = +s.dataset.s;
+      $$('#rtStars .star-btn').forEach((x) => x.classList.toggle('on', +x.dataset.s <= rateStars));
+    }));
+    $('#rtSend').addEventListener('click', sendRating);
+
+    // Calculadora
     $$('.seg-btn[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
     ['#readingStart', '#readingEnd', '#directKwh', '#serviceFee', '#discount'].forEach((s) => {
       $(s).addEventListener('input', updateLive);
@@ -1370,13 +1750,11 @@
     $$('#view-charge input').forEach((el) => el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); doCalc(); }
     }));
-
     $('#detailsToggle').addEventListener('click', () => {
       const body = $('#detailsBody');
       const open = body.classList.toggle('hidden') === false;
       $('#detailsToggle').setAttribute('aria-expanded', String(open));
     });
-
     $('#priceChip').addEventListener('click', () => { goView('settings'); setTimeout(() => $('#setPrice').focus(), 350); });
     $('#calcBtn').addEventListener('click', doCalc);
 
@@ -1391,13 +1769,13 @@
       playExit(() => { closeOverlay(); resetForm(); goView('charge'); });
     });
 
-    // Historial
+    // Historial / CSV
     $('#exportBtn').addEventListener('click', exportCSV);
     $('#exportBtn2').addEventListener('click', exportCSV);
     $('#clearHistBtn').addEventListener('click', () => {
       if (!sessions.length) { toast('El historial ya está vacío'); return; }
       if (confirm('¿Borrar todo el historial de cargas? Esta acción no se puede deshacer.')) {
-        sessions = []; persistSessions(); renderHistory(); toast('Historial borrado');
+        sessions = []; persistSessions(); renderHistory(); renderCharts(); toast('Historial borrado');
       }
     });
 
@@ -1408,68 +1786,10 @@
       renderCharts();
     }));
 
-    // Mapa: filtros
-    $$('#fSort .chip').forEach((c) => c.addEventListener('click', () => {
-      filters.sort = c.dataset.sort;
-      $$('#fSort .chip').forEach((x) => x.classList.toggle('is-active', x === c));
-      renderMap();
-    }));
-    $('#fPrice').addEventListener('input', () => {
-      filters.maxPrice = +$('#fPrice').value;
-      $('#fPriceVal').textContent = fmtCOP(filters.maxPrice).replace(/\s?COP$/, '');
-      const r = $('#fPrice');
-      r.style.setProperty('--rangePct', ((r.value - r.min) / (r.max - r.min) * 100).toFixed(1) + '%');
-      renderMap();
-    });
-    $$('#fPow .chip').forEach((c) => c.addEventListener('click', () => {
-      filters.minPow = +c.dataset.pow;
-      $$('#fPow .chip').forEach((x) => x.classList.toggle('is-active', x === c));
-      renderMap();
-    }));
-    $$('#fPort .chip').forEach((c) => c.addEventListener('click', () => {
-      filters.port = c.dataset.port;
-      $$('#fPort .chip').forEach((x) => x.classList.toggle('is-active', x === c));
-      renderMap();
-    }));
-    $('#fNow').addEventListener('click', () => {
-      filters.now = !filters.now;
-      $('#fNow').classList.toggle('is-on', filters.now);
-      $('#fNow').setAttribute('aria-checked', String(filters.now));
-      renderMap();
-    });
-    $('#fReset').addEventListener('click', () => {
-      filters.sort = 'dist'; filters.maxPrice = 2000; filters.minPow = 0; filters.port = 'all'; filters.now = false;
-      $('#fPrice').value = 2000;
-      $('#fPriceVal').textContent = '$2.000';
-      $('#fPrice').style.setProperty('--rangePct', '100%');
-      $$('#fSort .chip').forEach((x) => x.classList.toggle('is-active', x.dataset.sort === 'dist'));
-      $$('#fPow .chip').forEach((x) => x.classList.toggle('is-active', x.dataset.pow === '0'));
-      $$('#fPort .chip').forEach((x) => x.classList.toggle('is-active', x.dataset.port === 'all'));
-      $('#fNow').classList.remove('is-on');
-      renderMap();
-      toast('Filtros restablecidos');
-    });
-
-    // Hoja de reserva
-    $('#sheetBackdrop').addEventListener('click', closeSheet);
-
-    // Mi puesto
-    $('#spotSaveBtn').addEventListener('click', saveSpot);
-    $('#spotEditBtn').addEventListener('click', () => { spotEditing = true; renderSpotCard(); loadSpotForm(); setTimeout(() => $('#spName').focus(), 100); });
-    $('#spVisible').addEventListener('click', () => {
-      const sw = $('#spVisible');
-      sw.classList.toggle('is-on');
-      sw.setAttribute('aria-checked', String(sw.classList.contains('is-on')));
-    });
-
-    // Ajustes: precio
+    // Ajustes
     $('#setPrice').addEventListener('input', () => setPrice(parseNum($('#setPrice').value)));
-    // isTrusted: ignora eventos sintéticos de herramientas/extensiones que
-    // pueden "sondear" el slider a sus extremos y alterar el precio guardado
     $('#setPriceRange').addEventListener('input', (e) => { if (!e.isTrusted) return; setPrice(+$('#setPriceRange').value); });
     $$('#pricePresets .chip').forEach((c) => c.addEventListener('click', () => setPrice(+c.dataset.price)));
-
-    // Ajustes: estación
     $('#setStation').addEventListener('input', () => { settings.stationName = $('#setStation').value.trim(); persistSettings(); });
     $('#setOwner').addEventListener('input', () => { settings.ownerName = $('#setOwner').value.trim(); persistSettings(); });
     $('#stationDoneBtn').addEventListener('click', () => {
@@ -1482,8 +1802,6 @@
       renderStationCard();
       setTimeout(() => $('#setStation').focus(), 100);
     });
-
-    // Ajustes: otros
     $('#setServiceFee').addEventListener('input', () => { settings.serviceFee = Math.max(0, parseNum($('#setServiceFee').value)); persistSettings(); });
     $('#setEff').addEventListener('input', () => { settings.kmPerKwh = Math.max(0, parseNum($('#setEff').value)) || DEFAULTS.kmPerKwh; persistSettings(); });
     $$('#accentRow .accent-dot').forEach((d) => d.addEventListener('click', () => { applyAccent(d.dataset.accent); persistSettings(); }));
@@ -1496,23 +1814,22 @@
       persistSettings();
     });
 
-    // Reset
+    // Reset local
     $('#resetBtn').addEventListener('click', () => {
-      if (confirm('¿Restablecer TODO? Se borrarán ajustes, historial y reservas.')) {
-        [LS_SETTINGS, LS_SESSIONS, LS_BOOKINGS, LS_REQUESTS].forEach((k) => localStorage.removeItem(k));
+      if (confirm('¿Restablecer los datos locales? (ajustes, historial de la calculadora)')) {
+        [LS_SETTINGS, LS_SESSIONS, LS_CHATSEEN].forEach((k) => localStorage.removeItem(k));
         settings = Object.assign({}, DEFAULTS);
-        sessions = []; bookings = []; requests = null;
+        sessions = [];
         stationEditing = false; spotEditing = false;
         loadSettingsUI(); renderHistory(); resetForm();
         $('#roleGate').classList.remove('hidden');
-        toast('Todo restablecido');
+        toast('Datos locales restablecidos');
       }
     });
 
     // Atajos PWA
     const action = new URLSearchParams(location.search).get('action');
-    if (action === 'history') goView('history');
-    else if (action === 'charts') goView('charts');
+    if (action === 'history' || action === 'charts') goView('insights');
     else if (action === 'new') goView('charge');
 
     updateLive();

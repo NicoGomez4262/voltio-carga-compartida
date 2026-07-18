@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function onlyRating() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['ratingSum', 'ratingCount']);
+    }
+
+    // Perfiles de usuario
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() &&
+        (request.auth.uid == uid || onlyRating());
+    }
+
+    // Estaciones de carga: lectura pública (mapa), escritura del dueño.
+    // Terceros solo pueden tocar los agregados de calificación.
+    match /stations/{id} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn() &&
+        (resource.data.ownerUid == request.auth.uid || onlyRating());
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Reservas: las ven y actualizan solo conductor y anfitrión involucrados
+    match /bookings/{id} {
+      allow create: if signedIn() && request.resource.data.driverUid == request.auth.uid;
+      allow read, update: if signedIn() &&
+        (resource.data.driverUid == request.auth.uid ||
+         resource.data.ownerUid == request.auth.uid);
+    }
+
+    // Chats: solo participantes
+    match /chats/{chatId} {
+      allow create: if signedIn() && request.auth.uid in request.resource.data.participantes;
+      allow read, update: if signedIn() && request.auth.uid in resource.data.participantes;
+
+      match /messages/{mid} {
+        allow read: if signedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+        allow create: if signedIn() &&
+          request.resource.data.from == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+      }
+    }
+
+    // Calificaciones: lectura pública, crea solo el autor (1-5 estrellas)
+    match /ratings/{id} {
+      allow read: if true;
+      allow create: if signedIn() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        request.resource.data.stars is number &&
+        request.resource.data.stars >= 1 && request.resource.data.stars <= 5;
+    }
+  }
+}

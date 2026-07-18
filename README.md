@@ -5,9 +5,9 @@ Cualquier persona en Colombia puede ofrecer su parqueadero con cargador como pun
 carga —porque no lo usa, está de viaje o quiere un ingreso extra— y cualquier conductor
 puede encontrarlo, compararlo y reservarlo.
 
-🌐 **Demo en vivo:** https://voltio-aec23.web.app
+🌐 **App en vivo:** https://voltio-red.web.app
 
-> PWA instalable · 100% responsive (celular y PC) · Funciona offline · Sin frameworks
+> PWA instalable · 100% responsive (celular y PC) · Mapa real (OpenStreetMap) · Backend Firebase en tiempo real
 
 ---
 
@@ -27,10 +27,11 @@ Además, Voltio incluye la herramienta original que dio origen al proyecto: una
 **calculadora de cobro por contador** — anotas la lectura del medidor antes y después de
 la carga y la app calcula los kWh y el total en COP, con recibo compartible por WhatsApp.
 
-> **Estado actual:** el marketplace funciona en *modo demostración local* (los puestos
-> del mapa son datos de ejemplo y las reservas se simulan en el dispositivo). La
-> arquitectura está lista para conectar un backend real (Firebase Auth + Firestore) que
-> sincronice anfitriones y conductores de verdad. Ver [Roadmap](#-roadmap).
+> **Backend real:** la app usa **Firebase Auth** (Google o correo) y **Cloud Firestore**
+> con actualizaciones en tiempo real: las estaciones publicadas, reservas, chats y
+> calificaciones existen de verdad y se sincronizan entre dispositivos al instante.
+> El mapa es **OpenStreetMap vía Leaflet** con geolocalización GPS y pines en vivo.
+> Reglas de seguridad de Firestore incluidas en [`firestore.rules`](firestore.rules).
 
 ---
 
@@ -132,12 +133,14 @@ retención del pago hasta completar la carga y liberación automática al anfitr
 
 ## 🗺️ Roadmap
 
-- [ ] **Backend real**: Firebase Auth (cuentas) + Firestore (puestos y reservas en
-      tiempo real) + Cloud Messaging (notificaciones de solicitudes).
-- [ ] **Mapa real** (Google Maps / OpenStreetMap) con GPS y direcciones exactas.
+- [x] **Backend real**: Firebase Auth (Google/correo) + Firestore en tiempo real.
+- [x] **Mapa real** (Leaflet + OpenStreetMap) con GPS y pin arrastrable al publicar.
+- [x] Calificaciones bidireccionales (anfitrión ↔ conductor) con agregados en vivo.
+- [x] Chat anfitrión-conductor (también sin reserva: "pregúntale al anfitrión").
+- [x] Fotos del parqueadero (comprimidas en el dispositivo) y condiciones del servicio.
+- [ ] Notificaciones push (FCM) cuando llega una solicitud o mensaje.
 - [ ] Pagos integrados PSE/pasarela con conciliación automática.
-- [ ] Calificaciones bidireccionales y verificación de identidad.
-- [ ] Fotos del parqueadero y chat anfitrión-conductor.
+- [ ] Verificación de identidad (cédula) para el badge 🪪.
 - [ ] Check-in con QR al llegar al puesto.
 - [ ] Lectura del contador por foto (OCR).
 

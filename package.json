@@ -1,14 +1,16 @@
 {
   "name": "voltio-carga-compartida",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "PWA futurista para alquilar tu estación de carga de vehículos eléctricos y cobrar el consumo en COP.",
+  "description": "El Airbnb de los cargadores: red de carga compartida para vehículos eléctricos en Colombia. PWA con mapa real, reservas, chat y calculadora de cobro en COP.",
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
     "serve": "node server.js",
     "gen:icons": "node scripts/gen-icons.js",
+    "setup:backend": "node scripts/backend-setup.js setup",
+    "seed": "node scripts/backend-setup.js seed",
     "deploy": "firebase deploy --only hosting"
   },
   "engines": {
@@ -18,6 +20,7 @@
     "ev",
     "carga",
     "vehiculo-electrico",
+    "marketplace",
     "pwa",
     "colombia",
     "firebase"

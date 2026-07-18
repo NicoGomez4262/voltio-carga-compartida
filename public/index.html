@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0" />
-  <title>Voltio — Carga Compartida</title>
-  <meta name="description" content="Comparte o encuentra cargadores de vehículos eléctricos cerca de ti. Calcula y cobra el consumo en pesos colombianos." />
+  <title>Voltio — Red de Carga Compartida</title>
+  <meta name="description" content="El Airbnb de los cargadores: encuentra parqueaderos con cargador para tu carro eléctrico en Colombia, o publica el tuyo y genera ingresos." />
 
   <meta name="theme-color" content="#05070e" />
   <meta name="color-scheme" content="dark" />
@@ -20,8 +20,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Exo+2:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <link rel="stylesheet" href="/css/styles.css?v=1.2.0" />
+  <link rel="stylesheet" href="/css/styles.css?v=2.0.0" />
 </head>
 <body data-accent="cyan">
   <!-- Fondo animado -->
@@ -42,7 +43,7 @@
         </span>
         <div class="brand-text">
           <h1>Voltio</h1>
-          <p id="roleTag">Carga compartida</p>
+          <p id="roleTag">Red de carga</p>
         </div>
       </div>
       <div class="topbar-actions">
@@ -50,7 +51,9 @@
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
           <span>Instalar</span>
         </button>
-        <span id="netStatus" class="net-pill" title="Estado de conexión"><i class="dot"></i><span class="net-label">En línea</span></span>
+        <button id="topAuthBtn" class="avatar-chip" type="button" title="Tu cuenta">
+          <span id="topAvatar">👤</span>
+        </button>
       </div>
     </header>
 
@@ -59,14 +62,20 @@
 
       <!-- ---------- VISTA: MAPA (conductor) ---------- -->
       <section id="view-map" class="view" aria-label="Mapa de cargadores" hidden>
+        <div id="mapNotice" class="notice hidden"></div>
+
         <div class="card map-card">
           <div class="card-head">
-            <h2>Cargadores cerca de ti</h2>
+            <h2>Cargadores en Colombia</h2>
             <span class="chart-total" id="mapCount"></span>
           </div>
           <div class="map-holder">
-            <svg id="mapSvg" viewBox="0 0 360 240" preserveAspectRatio="xMidYMid meet"></svg>
+            <div id="liveMap"></div>
+            <button id="locateBtn" class="locate-btn" type="button" title="Usar mi ubicación">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+            </button>
           </div>
+          <p class="map-hint">Toca un pin para ver fotos, calificación y reservar · <b id="locState">ubicación aproximada</b></p>
         </div>
 
         <div class="card">
@@ -78,6 +87,7 @@
                 <button class="chip is-active" data-sort="dist" type="button">📍 Cercanía</button>
                 <button class="chip" data-sort="price" type="button">💲 Precio</button>
                 <button class="chip" data-sort="pow" type="button">⚡ Potencia</button>
+                <button class="chip" data-sort="rating" type="button">⭐ Calificación</button>
               </div>
             </div>
             <div class="f-row">
@@ -122,7 +132,12 @@
       <section id="view-bookings" class="view" aria-label="Mis reservas" hidden>
         <div class="card">
           <div class="card-head"><h2>Mis reservas</h2></div>
-          <div id="bookEmpty" class="empty">
+          <div id="bookAuth" class="empty hidden">
+            <div class="empty-icon">🔐</div>
+            <p>Inicia sesión para ver tus reservas.</p>
+            <button class="btn-secondary btn-block js-open-login" type="button" style="max-width:240px;margin:10px auto 0">Iniciar sesión</button>
+          </div>
+          <div id="bookEmpty" class="empty hidden">
             <div class="empty-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4"/></svg></div>
             <p>Aún no tienes reservas.</p>
             <span>Busca un cargador en el mapa y reserva ⚡</span>
@@ -131,8 +146,28 @@
         </div>
       </section>
 
-      <!-- ---------- VISTA: RESERVAS RECIBIDAS + MI PUESTO (anfitrión) ---------- -->
-      <section id="view-requests" class="view" aria-label="Reservas de mi puesto" hidden>
+      <!-- ---------- VISTA: CHATS (ambos roles) ---------- -->
+      <section id="view-chats" class="view" aria-label="Mensajes" hidden>
+        <div class="card">
+          <div class="card-head"><h2>Mensajes</h2></div>
+          <div id="chatAuth" class="empty hidden">
+            <div class="empty-icon">🔐</div>
+            <p>Inicia sesión para chatear.</p>
+            <button class="btn-secondary btn-block js-open-login" type="button" style="max-width:240px;margin:10px auto 0">Iniciar sesión</button>
+          </div>
+          <div id="chatsEmpty" class="empty hidden">
+            <div class="empty-icon">💬</div>
+            <p>Aún no tienes conversaciones.</p>
+            <span>Abre un puesto en el mapa y pregúntale al anfitrión</span>
+          </div>
+          <ul id="chatsList" class="book-list"></ul>
+        </div>
+      </section>
+
+      <!-- ---------- VISTA: MI PUESTO + SOLICITUDES (anfitrión) ---------- -->
+      <section id="view-requests" class="view" aria-label="Mi puesto y reservas" hidden>
+
+        <div id="reqNotice" class="notice hidden"></div>
 
         <div class="card" id="mySpotCard">
           <div class="card-head">
@@ -143,16 +178,43 @@
             </button>
           </div>
 
+          <div id="spotAuth" class="empty hidden">
+            <div class="empty-icon">🔌</div>
+            <p>Publica tu parqueadero como punto de carga.</p>
+            <span>Gana ingresos con tu cargador cuando no lo usas. Solo necesitas una cuenta.</span>
+            <button class="btn-secondary btn-block js-open-login" type="button" style="max-width:260px;margin:12px auto 0">Iniciar sesión para publicar</button>
+          </div>
+
           <div id="spotSummary" class="hidden"></div>
 
-          <div id="spotForm">
-            <p class="hint" style="margin:0 0 12px">Publica tu parqueadero como punto de carga: gana ingresos con tu cargador cuando no lo usas.</p>
+          <div id="spotForm" class="hidden">
             <div class="grid-2">
               <div class="field"><label for="spName">Nombre del puesto</label><div class="input-wrap"><input id="spName" type="text" placeholder="Ej: Garaje Torre 3" autocomplete="off"/></div></div>
-              <div class="field"><label for="spDir">Dirección / referencia</label><div class="input-wrap"><input id="spDir" type="text" placeholder="Ej: Cl 12 # 34-56" autocomplete="off"/></div></div>
+              <div class="field"><label for="spDir">Dirección visible</label><div class="input-wrap"><input id="spDir" type="text" placeholder="Ej: Cl 12 # 34-56, Bogotá" autocomplete="off"/></div></div>
               <div class="field"><label for="spPrecio">Precio por kWh</label><div class="input-wrap"><span class="unit unit--left">$</span><input id="spPrecio" inputmode="numeric" class="has-left" placeholder="900" autocomplete="off"/></div></div>
               <div class="field"><label for="spPow">Potencia</label><div class="input-wrap select-wrap"><select id="spPow"><option value="3.6">3,6 kW (doméstico)</option><option value="7.4" selected>7,4 kW (wallbox)</option><option value="11">11 kW</option><option value="22">22 kW</option></select></div></div>
               <div class="field"><label for="spPort">Tipo de puerto</label><div class="input-wrap select-wrap"><select id="spPort"><option>Tipo 1</option><option selected>Tipo 2</option><option>CCS</option><option>Doméstico</option></select></div></div>
+            </div>
+
+            <div class="field ta-field">
+              <label>Ubicación en el mapa <span class="opt">(arrastra el pin a tu parqueadero)</span></label>
+              <div class="pick-holder"><div id="pickMap"></div></div>
+              <div class="pick-row">
+                <button id="spUseLoc" class="btn-ghost btn-sm" type="button">📍 Usar mi ubicación</button>
+                <span id="spLatLng" class="pick-coords">4.6533, -74.0836</span>
+              </div>
+            </div>
+
+            <div class="field ta-field">
+              <label>Fotos del parqueadero <span class="opt">(hasta 3)</span></label>
+              <div class="foto-row" id="spFotoThumbs">
+                <label class="foto-add" for="spFotoInput">＋<input id="spFotoInput" type="file" accept="image/*" multiple hidden /></label>
+              </div>
+            </div>
+
+            <div class="field ta-field">
+              <label for="spCond">Condiciones del servicio <span class="opt">(cómo llegar, horarios, normas)</span></label>
+              <div class="input-wrap"><textarea id="spCond" rows="3" placeholder="Ej: Parqueadero cubierto con cámaras. Avisa por el chat al llegar…"></textarea></div>
             </div>
 
             <div class="field ta-field">
@@ -170,7 +232,7 @@
                 <div class="field"><div class="input-wrap"><input id="spBreb" type="text" placeholder="Llave: @usuario, celular…" autocomplete="off"/></div></div>
                 <div class="field"><div class="input-wrap"><input id="spTitular" type="text" placeholder="Titular de la cuenta" autocomplete="off"/></div></div>
               </div>
-              <p class="hint">El conductor verá tu llave y el titular al confirmar la reserva, para transferirte por Bre-B. Integración PSE: próximamente.</p>
+              <p class="hint">El conductor la verá al confirmarse la reserva. Integración PSE: próximamente.</p>
             </div>
 
             <div class="switch-row">
@@ -296,12 +358,44 @@
         </div>
       </section>
 
-      <!-- ---------- VISTA: HISTORIAL (anfitrión) ---------- -->
-      <section id="view-history" class="view" aria-label="Historial" hidden>
+      <!-- ---------- VISTA: ANÁLISIS (anfitrión: historial + gráficas) ---------- -->
+      <section id="view-insights" class="view" aria-label="Análisis" hidden>
         <div class="stats-row">
           <div class="stat"><span class="stat-label">Total ganado</span><span class="stat-value" id="statEarn">$0</span></div>
           <div class="stat"><span class="stat-label">Energía</span><span class="stat-value" id="statKwh">0 <small>kWh</small></span></div>
           <div class="stat"><span class="stat-label">Cargas</span><span class="stat-value" id="statCount">0</span></div>
+        </div>
+
+        <div class="chart-controls card">
+          <div class="card-head"><h2>Gráficas</h2><span class="chart-total" id="chartPeriod"></span></div>
+          <div class="segmented" id="chartGroup" role="tablist" aria-label="Agrupar por">
+            <button class="seg-btn is-active" data-group="day" type="button">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              Por día
+            </button>
+            <button class="seg-btn" data-group="driver" type="button">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Por vecino
+            </button>
+          </div>
+        </div>
+
+        <div class="card chart-card">
+          <div class="card-head"><h2>💰 Ingresos</h2><span class="chart-unit">COP</span></div>
+          <div class="chart-holder"><svg id="chartSvgA" viewBox="0 0 360 250" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="chart-foot" id="chartFootA"></div>
+        </div>
+
+        <div class="card chart-card">
+          <div class="card-head"><h2>⚡ Energía</h2><span class="chart-unit">kWh</span></div>
+          <div class="chart-holder"><svg id="chartSvgB" viewBox="0 0 360 250" preserveAspectRatio="xMidYMid meet"></svg></div>
+          <div class="chart-foot" id="chartFootB"></div>
+        </div>
+
+        <div id="chartEmpty" class="empty hidden">
+          <div class="empty-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></svg></div>
+          <p>Aún no hay datos para graficar.</p>
+          <span>Registra cargas en la calculadora ⚡</span>
         </div>
 
         <div class="card">
@@ -325,49 +419,28 @@
         </div>
       </section>
 
-      <!-- ---------- VISTA: GRÁFICAS (anfitrión) ---------- -->
-      <section id="view-charts" class="view" aria-label="Gráficas" hidden>
-        <div class="chart-controls card">
-          <div class="card-head"><h2>Análisis</h2><span class="chart-total" id="chartPeriod"></span></div>
-          <div class="segmented" id="chartGroup" role="tablist" aria-label="Agrupar por">
-            <button class="seg-btn is-active" data-group="day" type="button">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              Por día
-            </button>
-            <button class="seg-btn" data-group="driver" type="button">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Por vecino
-            </button>
-          </div>
-        </div>
-
-        <div class="card chart-card">
-          <div class="card-head">
-            <h2>💰 Ingresos</h2>
-            <span class="chart-unit">COP</span>
-          </div>
-          <div class="chart-holder"><svg id="chartSvgA" viewBox="0 0 360 250" preserveAspectRatio="xMidYMid meet"></svg></div>
-          <div class="chart-foot" id="chartFootA"></div>
-        </div>
-
-        <div class="card chart-card">
-          <div class="card-head">
-            <h2>⚡ Energía</h2>
-            <span class="chart-unit">kWh</span>
-          </div>
-          <div class="chart-holder"><svg id="chartSvgB" viewBox="0 0 360 250" preserveAspectRatio="xMidYMid meet"></svg></div>
-          <div class="chart-foot" id="chartFootB"></div>
-        </div>
-
-        <div id="chartEmpty" class="empty hidden">
-          <div class="empty-icon"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></svg></div>
-          <p>Aún no hay datos para graficar.</p>
-          <span>Guarda tus cargas y aquí verás la magia 📊</span>
-        </div>
-      </section>
-
       <!-- ---------- VISTA: AJUSTES ---------- -->
       <section id="view-settings" class="view" aria-label="Ajustes" hidden>
+
+        <!-- Cuenta -->
+        <div class="card" id="accountCard">
+          <div class="card-head"><h2>Tu cuenta</h2></div>
+          <div id="accSignedOut">
+            <p class="hint" style="margin:0 0 12px">Con una cuenta puedes reservar cargadores, chatear, calificar y publicar tu puesto. Tus datos viven en la nube de Voltio.</p>
+            <button class="btn-secondary btn-block js-open-login" type="button">Iniciar sesión o crear cuenta</button>
+          </div>
+          <div id="accSignedIn" class="hidden">
+            <div class="acc-row">
+              <span class="acc-avatar" id="accAvatar">N</span>
+              <div class="acc-info">
+                <div class="acc-name" id="accName">—</div>
+                <div class="acc-email" id="accEmail">—</div>
+                <div class="sc-badges" id="accBadges" style="margin-top:7px"></div>
+              </div>
+            </div>
+            <button id="accLogout" class="btn-ghost btn-block btn-danger" type="button" style="margin-top:14px">Cerrar sesión</button>
+          </div>
+        </div>
 
         <div class="card">
           <div class="card-head"><h2>Modo de uso</h2></div>
@@ -380,7 +453,7 @@
 
         <div class="card" id="stationCard">
           <div class="card-head">
-            <h2>Tu estación</h2>
+            <h2>Tu estación (recibos)</h2>
             <button id="stationEditBtn" class="btn-ghost btn-sm hidden" type="button">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
               Editar
@@ -475,12 +548,12 @@
           <div class="card-head"><h2>Datos</h2></div>
           <div class="data-actions">
             <button id="exportBtn2" class="btn-ghost" type="button">Exportar historial (CSV)</button>
-            <button id="resetBtn" class="btn-ghost btn-danger" type="button">Restablecer todo</button>
+            <button id="resetBtn" class="btn-ghost btn-danger" type="button">Restablecer datos locales</button>
           </div>
-          <p class="hint">Todo se guarda solo en este dispositivo. Los puestos del mapa son datos de demostración.</p>
+          <p class="hint">Calculadora y ajustes viven en este dispositivo. Estaciones, reservas y chats viven en la nube de Voltio.</p>
         </div>
 
-        <p class="version">Voltio v1.2.0 · Hecho para compartir energía limpia ⚡</p>
+        <p class="version">Voltio v2.0.0 · La red de carga compartida de Colombia ⚡</p>
       </section>
     </main>
 
@@ -493,22 +566,25 @@
       <button class="nav-btn" data-view="bookings" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4"/></svg>
         <span>Reservas</span>
+        <i class="nav-dot hidden" id="dotBookings"></i>
       </button>
       <button class="nav-btn" data-view="requests" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
-        <span>Reservas</span>
+        <span>Puesto</span>
+        <i class="nav-dot hidden" id="dotRequests"></i>
+      </button>
+      <button class="nav-btn" data-view="chats" type="button">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Chats</span>
+        <i class="nav-dot hidden" id="dotChats"></i>
       </button>
       <button class="nav-btn is-active" data-view="charge" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>
         <span>Cargar</span>
       </button>
-      <button class="nav-btn" data-view="history" type="button">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 3"/></svg>
-        <span>Historial</span>
-      </button>
-      <button class="nav-btn" data-view="charts" type="button">
+      <button class="nav-btn" data-view="insights" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16"/><path d="M7 16v-5"/><path d="M12 16V6"/><path d="M17 16v-8"/></svg>
-        <span>Gráficas</span>
+        <span>Análisis</span>
       </button>
       <button class="nav-btn" data-view="settings" type="button">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -517,14 +593,14 @@
     </nav>
   </div>
 
-  <!-- ===================== SELECCIÓN DE ROL (primer uso) ===================== -->
+  <!-- ===================== SELECCIÓN DE ROL ===================== -->
   <div id="roleGate" class="role-gate hidden" aria-hidden="true">
     <div class="role-gate-inner">
       <span class="brand-mark brand-mark--big" aria-hidden="true">
         <svg viewBox="0 0 100 100" width="38" height="38"><path d="M57 14 L28 56 H46 L41 86 L73 42 H53 Z" fill="currentColor"/></svg>
       </span>
       <h2>Bienvenido a Voltio</h2>
-      <p>La red de carga compartida entre vecinos.<br/>¿Cómo quieres usarla hoy?</p>
+      <p>El Airbnb de los cargadores para carros eléctricos.<br/>¿Cómo quieres usarla hoy?</p>
       <button class="role-card" id="roleDriverBtn" type="button">
         <span class="role-ico">🚗</span>
         <span class="role-txt"><b>Necesito cargar</b><small>Encuentra parqueaderos con cargador cerca de ti</small></span>
@@ -537,12 +613,79 @@
     </div>
   </div>
 
-  <!-- ===================== HOJA DE PUESTO (reservar) ===================== -->
+  <!-- ===================== LOGIN ===================== -->
+  <div id="loginSheet" class="sheet" aria-hidden="true">
+    <div class="sheet-backdrop" data-close="login"></div>
+    <div class="sheet-panel">
+      <div class="sheet-grip"></div>
+      <div class="login-box">
+        <span class="brand-mark brand-mark--big"><svg viewBox="0 0 100 100" width="30" height="30"><path d="M57 14 L28 56 H46 L41 86 L73 42 H53 Z" fill="currentColor"/></svg></span>
+        <h3 id="lgTitle">Entra a la red Voltio</h3>
+        <p class="lg-sub">Reserva cargadores, chatea con anfitriones y publica tu puesto.</p>
+
+        <button id="lgGoogle" class="g-btn" type="button">
+          <svg viewBox="0 0 48 48" width="18" height="18"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C41 35.4 44 30.2 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+          Continuar con Google
+        </button>
+
+        <div class="lg-div"><span>o con tu correo</span></div>
+
+        <div class="field hidden" id="lgNameField"><div class="input-wrap"><input id="lgName" type="text" placeholder="Tu nombre" autocomplete="name"/></div></div>
+        <div class="field"><div class="input-wrap"><input id="lgEmail" type="email" placeholder="Correo electrónico" autocomplete="email"/></div></div>
+        <div class="field"><div class="input-wrap"><input id="lgPass" type="password" placeholder="Contraseña" autocomplete="current-password"/></div></div>
+        <p id="lgError" class="form-error hidden"></p>
+        <button id="lgSubmit" class="btn-secondary btn-block" type="button">Entrar</button>
+        <button id="lgToggle" class="lg-toggle" type="button">¿No tienes cuenta? <b>Crear una</b></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== HOJA DE PUESTO ===================== -->
   <div id="spotSheet" class="sheet" aria-hidden="true">
-    <div class="sheet-backdrop" id="sheetBackdrop"></div>
+    <div class="sheet-backdrop" data-close="spot"></div>
     <div class="sheet-panel">
       <div class="sheet-grip"></div>
       <div id="sheetContent"></div>
+    </div>
+  </div>
+
+  <!-- ===================== CHAT ===================== -->
+  <div id="chatSheet" class="sheet" aria-hidden="true">
+    <div class="sheet-backdrop" data-close="chat"></div>
+    <div class="sheet-panel chat-panel">
+      <div class="sheet-grip"></div>
+      <div class="chat-head">
+        <div><div class="bk-name" id="chTitle">Chat</div><div class="bk-sub" id="chSub"></div></div>
+        <button class="btn-ghost btn-sm" data-close="chat" type="button">Cerrar</button>
+      </div>
+      <div class="chat-msgs" id="chMsgs"></div>
+      <div class="chat-inputbar">
+        <div class="input-wrap chat-input"><input id="chInput" type="text" placeholder="Escribe un mensaje…" autocomplete="off" maxlength="500"/></div>
+        <button id="chSend" class="chat-send" type="button">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CALIFICAR ===================== -->
+  <div id="rateSheet" class="sheet" aria-hidden="true">
+    <div class="sheet-backdrop" data-close="rate"></div>
+    <div class="sheet-panel">
+      <div class="sheet-grip"></div>
+      <div class="login-box">
+        <h3 id="rtTitle">Califica tu experiencia</h3>
+        <p class="lg-sub" id="rtSub"></p>
+        <div class="stars-row" id="rtStars">
+          <button class="star-btn" data-s="1" type="button">★</button>
+          <button class="star-btn" data-s="2" type="button">★</button>
+          <button class="star-btn" data-s="3" type="button">★</button>
+          <button class="star-btn" data-s="4" type="button">★</button>
+          <button class="star-btn" data-s="5" type="button">★</button>
+        </div>
+        <div class="field"><div class="input-wrap"><textarea id="rtComment" rows="2" placeholder="Cuéntanos cómo te fue (opcional)…"></textarea></div></div>
+        <button id="rtSend" class="btn-secondary btn-block" type="button">Enviar calificación</button>
+      </div>
     </div>
   </div>
 
@@ -552,7 +695,6 @@
     <div class="overlay-content">
       <button id="skipBtn" class="skip-btn" type="button">Saltar ⏭</button>
 
-      <!-- Consola de carga -->
       <div class="charge-console" id="chargeConsole">
         <div class="cc-cell"><span class="cc-label">Energía</span><span class="cc-num"><b id="roKwh">0,0</b> <i>kWh</i></span></div>
         <div class="cc-div"></div>
@@ -585,7 +727,6 @@
           <path id="cable" d="M 686 246 C 648 278, 570 250, 481 209" fill="none" stroke="#0e1626" stroke-width="12" stroke-linecap="round"/>
           <path id="cableFlow" d="M 686 246 C 648 278, 570 250, 481 209" fill="none" stroke="url(#accentGrad)" stroke-width="5" stroke-linecap="round" stroke-dasharray="10 18" stroke-dashoffset="0"/>
 
-          <!-- ===== VEHÍCULO (4 modelos intercambiables) ===== -->
           <g id="evCar">
             <ellipse class="car-shadow" cx="262" cy="285" rx="238" ry="18" fill="#000" opacity="0.45" filter="url(#soft)"/>
             <ellipse class="car-underglow" cx="262" cy="283" rx="205" ry="13" fill="url(#glowRad)" opacity="0.6"/>
@@ -616,8 +757,6 @@
             </g>
 
             <g id="carBodyGrp">
-
-              <!-- ============ MODELO: PICKUP ============ -->
               <g class="car-model" data-model="pickup">
                 <path class="car-body" d="M 48 242 C 36 242 30 235 30 225 L 30 196 C 30 189 35 185 43 184 L 208 181 C 218 149 236 135 262 133 L 318 131 C 338 132 354 141 370 157 C 381 167 391 171 402 173 L 448 175 C 471 177 487 187 489 203 L 489 219 C 489 233 484 242 472 242 A 47 47 0 0 0 378 242 L 167 242 A 47 47 0 0 0 73 242 L 48 242 Z"
                   fill="url(#bodyGrad)" stroke="rgba(130,170,225,0.28)" stroke-width="1.5"/>
@@ -634,7 +773,6 @@
                 <rect x="28" y="190" width="7" height="26" rx="3" fill="#ff5d6c" opacity="0.5" filter="url(#soft)"/>
               </g>
 
-              <!-- ============ MODELO: SEDÁN ============ -->
               <g class="car-model" data-model="sedan">
                 <path class="car-body" d="M 48 242 C 36 242 30 234 30 222 L 30 208 C 30 198 38 192 52 190 C 60 172 76 162 100 158 L 148 154 C 170 132 202 120 246 118 L 286 118 C 330 120 362 134 388 158 L 430 166 C 462 172 482 182 487 198 L 489 214 C 489 230 484 242 472 242 A 47 47 0 0 0 378 242 L 167 242 A 47 47 0 0 0 73 242 L 48 242 Z"
                   fill="url(#bodyGrad)" stroke="rgba(130,170,225,0.28)" stroke-width="1.5"/>
@@ -649,7 +787,6 @@
                 <rect x="28" y="196" width="7" height="22" rx="3" fill="#ff5d6c" opacity="0.5" filter="url(#soft)"/>
               </g>
 
-              <!-- ============ MODELO: SUV FAMILIAR ============ -->
               <g class="car-model" data-model="suv">
                 <path class="car-body" d="M 46 242 C 35 242 30 234 30 222 L 30 196 C 30 184 36 174 50 168 C 66 140 96 124 136 120 L 250 116 C 296 116 332 128 360 150 C 380 162 402 168 428 171 L 452 173 C 475 176 488 187 489 203 L 489 218 C 489 232 484 242 472 242 A 47 47 0 0 0 378 242 L 167 242 A 47 47 0 0 0 73 242 L 46 242 Z"
                   fill="url(#bodyGrad)" stroke="rgba(130,170,225,0.28)" stroke-width="1.5"/>
@@ -664,7 +801,6 @@
                 <rect x="28" y="184" width="7" height="26" rx="3" fill="#ff5d6c" opacity="0.5" filter="url(#soft)"/>
               </g>
 
-              <!-- ============ MODELO: 4x4 ALTO ============ -->
               <g class="car-model" data-model="4x4">
                 <path class="car-body" d="M 44 242 C 34 242 30 235 30 226 L 30 158 C 30 148 36 142 46 142 L 60 141 C 64 132 72 128 84 128 L 320 126 C 332 126 340 130 346 138 L 366 162 C 372 168 380 170 390 171 L 452 174 C 474 176 488 187 489 202 L 489 219 C 489 233 484 242 472 242 A 47 47 0 0 0 378 242 L 167 242 A 47 47 0 0 0 73 242 L 44 242 Z"
                   fill="url(#bodyGrad)" stroke="rgba(130,170,225,0.28)" stroke-width="1.5"/>
@@ -682,7 +818,6 @@
                 <rect x="28" y="160" width="7" height="30" rx="3" fill="#ff5d6c" opacity="0.5" filter="url(#soft)"/>
               </g>
 
-              <!-- Elementos compartidos por todos los modelos -->
               <path d="M 80 236 L 466 237" stroke="rgba(0,0,0,0.35)" stroke-width="5" stroke-linecap="round"/>
               <rect class="car-headlight" x="462" y="179" width="26" height="7" rx="3.5"/>
               <ellipse class="head-glow" cx="491" cy="183" rx="18" ry="6" filter="url(#soft)"/>
@@ -709,7 +844,6 @@
         </svg>
       </div>
 
-      <!-- Panel de resultado -->
       <div id="resultPanel" class="result-panel">
         <div class="result-total">
           <span class="result-total-label">Total a cobrar</span>
@@ -763,6 +897,8 @@
     </defs>
   </svg>
 
-  <script src="/js/app.js?v=1.2.0" defer></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="/js/backend.js?v=2.0.0"></script>
+  <script defer src="/js/app.js?v=2.0.0"></script>
 </body>
 </html>

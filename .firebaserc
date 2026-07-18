@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "voltio-aec23"
+  },
+  "targets": {
+    "voltio-aec23": {
+      "hosting": {
+        "red": ["voltio-red"],
+        "main": ["voltio-aec23"]
+      }
+    }
   }
 }
