@@ -175,6 +175,35 @@ async function seed() {
   console.log('SEED COMPLETO');
 }
 
+/* ============================ CHECK ============================ */
+async function check() {
+  const db = await api('GET', `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)`);
+  console.log('Firestore  :', db.status === 200
+    ? `OK (${db.body.locationId}, ${db.body.type})`
+    : `FALTA (${db.status} ${db.body.error ? db.body.error.message.slice(0, 60) : ''})`);
+
+  const cfg = await api('GET', `https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT}/config`);
+  if (cfg.status === 200) {
+    const si = cfg.body.signIn || {};
+    console.log('Auth correo:', si.email && si.email.enabled ? 'OK habilitado' : 'FALTA');
+    console.log('Dominios   :', (cfg.body.authorizedDomains || []).join(', '));
+  } else console.log('Auth       : FALTA (', cfg.status, ')');
+
+  const idp = await api('GET', `https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT}/defaultSupportedIdpConfigs`);
+  const gl = ((idp.body && idp.body.defaultSupportedIdpConfigs) || []).find((c) => (c.name || '').endsWith('google.com'));
+  console.log('Auth Google:', gl ? (gl.enabled ? 'OK habilitado' : 'existe pero DESHABILITADO') : 'FALTA (habilítalo en consola)');
+}
+
+/* ============================ IAM ============================ */
+async function iam() {
+  const r = await api('POST', `https://cloudresourcemanager.googleapis.com/v1/projects/${PROJECT}:getIamPolicy`, {});
+  if (r.status !== 200) { console.log('getIamPolicy ->', r.status, r.body.error ? r.body.error.message : ''); return; }
+  const me = 'serviceAccount:' + key.client_email;
+  const mine = (r.body.bindings || []).filter((b) => (b.members || []).includes(me)).map((b) => b.role);
+  console.log('Cuenta de servicio:', key.client_email);
+  console.log('Roles actuales    :', mine.length ? mine.join(', ') : '(ninguno)');
+}
+
 /* ============================ MAIN ============================ */
 (async () => {
   TOKEN = await getToken();
@@ -182,5 +211,7 @@ async function seed() {
   if (cmd === 'setup') await setup();
   else if (cmd === 'seed') await seed();
   else if (cmd === 'google') await tryGoogle();
+  else if (cmd === 'check') await check();
+  else if (cmd === 'iam') await iam();
   else console.log('comando desconocido:', cmd);
 })().catch((e) => { console.error('ERROR:', e.message); process.exit(1); });
